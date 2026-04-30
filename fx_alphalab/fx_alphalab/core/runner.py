@@ -6,6 +6,7 @@ that can be imported and called directly by the backend.
 """
 
 import csv
+import json
 import os
 import re
 from datetime import datetime, timezone
@@ -172,13 +173,83 @@ class AgentRunner:
             f"sent={sent_out['signal']}"
         )
         
+        # ── NEW: Capture feature values before they're discarded ──
+        last = price_df.iloc[-1]
+        current_price = float(last["close"])
+        atr_val = float(last.get("atr", 0.0))
+        
+        # Extract nested macro features and regime probs
+        mac_feats = macro_out.get("mac_features", {})
+        regime_probs = macro_out.get("regime_probs", {})
+        
+        enrichment = {
+            "price_at_signal": round(current_price, 5),
+            "atr":             round(atr_val, 6),
+            
+            # Macro features (nested in mac_features dict)
+            "yield_z":         round(float(mac_feats.get("mac_yield_z", 0.0)), 4),
+            "carry_signal":    round(float(mac_feats.get("pair_carry_signal", 0.0)), 4),
+            "vix_z":           round(float(mac_feats.get("mac_vix_z", 0.0)), 4),
+            
+            # Regime probabilities (from regime_probs dict)
+            "regime_prob_bull": round(float(regime_probs.get("bullish", 0.33)), 4),
+            "regime_prob_neut": round(float(regime_probs.get("neutral", 0.34)), 4),
+            "regime_prob_bear": round(float(regime_probs.get("bearish", 0.33)), 4),
+            
+            # Technical features (correct key names)
+            "p_buy":           round(float(tech_out.get("p_buy", 0.0)), 4),
+            "p_sell":          round(float(tech_out.get("p_sell", 0.0)), 4),
+            "p_hold":          round(float(tech_out.get("p_hold", 0.0)), 4),
+            "model_conf":      round(float(tech_out.get("confidence", 0.0)), 4),
+            "rsi14":           round(float(last.get("rsi14", 0.0)) * 100, 2),
+            "macd_hist":       round(float(last.get("macd_hist", 0.0)), 8),
+            "bb_pos":          round(float(last.get("bb_pos", 0.5)), 4),
+            
+            # Sentiment features (use p_buy from sentiment, map to p_bullish)
+            "p_bullish":       round(float(sent_out.get("p_buy", 0.5)), 4),
+            "n_articles":      int(news_result.get("n_articles", 0)),
+            "sent_raw":        round(float(nws_feats.get("nws_sent_signal", 0.0)), 4),
+            "headlines":       json.dumps(headlines[:5]),  # store as JSON string
+        }
+        
         # 5. LLM orchestrator
         logger.info("  LLM orchestrator reasoning...")
         signal = self.orchestrator.run(pair, macro_out, tech_out, sent_out, headlines)
         
+        # ── NEW: Merge enrichment + compute trade levels ──
+        signal.update(enrichment)
+        signal = self._add_trade_levels(signal)
+        
         # 6. Store in memory
         self.context.add(pair, signal)
         
+        return signal
+    
+    def _add_trade_levels(self, signal: Dict) -> Dict:
+        """Compute entry zone, stop, target from price and ATR."""
+        price = signal.get("price_at_signal", 0.0)
+        atr = signal.get("atr", 0.0)
+        direction = signal.get("direction", "HOLD")
+
+        if atr == 0.0 or direction == "HOLD":
+            signal.update({
+                "entry_low": None, "entry_high": None,
+                "stop_estimate": None, "target_estimate": None,
+            })
+            return signal
+
+        entry_buffer = 0.2 * atr
+        if direction == "BUY":
+            signal["entry_low"]       = round(price - entry_buffer, 5)
+            signal["entry_high"]      = round(price + entry_buffer, 5)
+            signal["stop_estimate"]   = round(price - 1.5 * atr, 5)
+            signal["target_estimate"] = round(price + 2.0 * atr, 5)
+        elif direction == "SELL":
+            signal["entry_low"]       = round(price - entry_buffer, 5)
+            signal["entry_high"]      = round(price + entry_buffer, 5)
+            signal["stop_estimate"]   = round(price + 1.5 * atr, 5)
+            signal["target_estimate"] = round(price - 2.0 * atr, 5)
+
         return signal
     
     def _save_signal(self, signal: Dict):
@@ -188,9 +259,17 @@ class AgentRunner:
         
         exists = signals_csv.exists()
         cols = [
-            "timestamp", "pair", "direction", "confidence",
-            "position_size", "macro_regime", "tech_signal", "sent_signal",
-            "agent_agreement", "reasoning", "source",
+            "timestamp", "pair", "direction", "confidence", "position_size",
+            "macro_regime", "tech_signal", "sent_signal", "agent_agreement",
+            "reasoning", "source",
+            # enriched fields
+            "price_at_signal", "atr", "entry_low", "entry_high",
+            "stop_estimate", "target_estimate",
+            "yield_z", "carry_signal", "vix_z",
+            "regime_prob_bull", "regime_prob_neut", "regime_prob_bear",
+            "p_buy", "p_sell", "p_hold", "model_conf",
+            "rsi14", "macd_hist", "bb_pos",
+            "p_bullish", "n_articles", "sent_raw", "headlines",
         ]
         
         with open(signals_csv, "a", newline="", encoding="utf-8") as f:

@@ -1,34 +1,37 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
 
 :root {
-  --font-sans: 'DM Sans', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
-  /* Terminal dark palette */
-  --bg:          #0a0a0f;
-  --surface:     #111118;
-  --card:        #16161e;
-  --border:      #1e1e2e;
-  --hover:       #1a1a24;
-
-  /* Signal colors */
-  --buy:         #00d97e;
-  --sell:        #ff4d6d;
-  --hold:        #6b7280;
-  --info:        #38bdf8;
-  --warn:        #fbbf24;
-
-  /* Text */
-  --text-primary:   #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-muted:     #4b5563;
+  /* FX AlphaLab color palette */
+  --bg:      #0a0906;
+  --bg1:     #0f0d0a;
+  --bg2:     #141210;
+  --bg3:     #1c1916;
+  --bg4:     #242018;
+  --border:  #2a2520;
+  --border2: #3a332a;
+  --amber:   #e8a030;
+  --amber2:  #c8841a;
+  --text:    #e8e0d0;
+  --text2:   #a09080;
+  --text3:   #605848;
+  --green:   #3db87a;
+  --red:     #d45c4a;
+  --blue:    #5a9fd4;
 
   color-scheme: dark;
   font-family: var(--font-sans);
   font-size: 14px;
   background: var(--bg);
-  color: var(--text-primary);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -48,14 +51,15 @@ body { background: var(--bg); }
 .mono { font-family: var(--font-mono); }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--amber2); }
 
 /* Animations */
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.2; }
+  50%       { opacity: 0.3; }
 }
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(8px); }
@@ -65,7 +69,17 @@ body { background: var(--bg); }
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+@keyframes price-flash-green {
+  0%   { background-color: rgba(61, 184, 122, 0.2); }
+  100% { background-color: transparent; }
+}
+@keyframes price-flash-red {
+  0%   { background-color: rgba(212, 92, 74, 0.2); }
+  100% { background-color: transparent; }
+}
 
 .animate-pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
 .animate-slide-up  { animation: slide-up 0.3s ease forwards; }
 .animate-fade-in   { animation: fade-in 0.4s ease forwards; }
+.animate-flash-green { animation: price-flash-green 0.6s ease; }
+.animate-flash-red   { animation: price-flash-red 0.6s ease; }
