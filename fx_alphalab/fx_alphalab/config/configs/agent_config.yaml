@@ -1,0 +1,131 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  FX AlphaLab v2  ·  Agent Config
+# ─────────────────────────────────────────────────────────────────────────────
+
+system:
+  pairs:
+    - "EURUSD=X"
+    - "GBPUSD=X"
+    - "USDJPY=X"
+  bar_interval:    "1h"
+  lookback_bars:   720
+  run_every_mins:  60
+  timezone:        "UTC"
+
+paths:
+  data_dir:        "data/"
+  outputs_dir:     "outputs/"
+  logs_dir:        "logs/"
+  signals_csv:     "outputs/signals.csv"
+  # macro_model:     "outputs/models/macro/"
+  # tech_model:      "outputs/models/technical/"
+  # sent_model:      "outputs/models/sentiment/"
+  macro_model:     "outputs/models_v4/macro/"
+  tech_model:      "outputs/models_v4/technical/"
+  sent_model:      "outputs/models_v4/sentiment/"
+
+# llm:
+#   model:           "llama3.1:latest"
+#   host:            "http://localhost:11434"
+#   temperature:     0.1
+#   max_tokens:      1024
+#   system_prompt:   "unused — defined in orchestrator.py"
+
+llm:
+  provider: "groq"
+  model: "llama-3.3-70b-versatile"
+  groq_api_key: "${GROQ_API_KEY}"  # Set in .env file
+  host: "http://localhost:11434"
+  temperature: 0.1
+  max_tokens: 1024
+
+fred:
+  api_key: "${FRED_API_KEY}"  # Set in .env file
+  series:
+    yield_10y_us:  "DGS10"
+    yield_2y_us:   "DGS2"
+    vix:           "VIXCLS"
+
+news:
+  rss_feeds:
+    # ForexLive — confirmed working (25 entries, FX-specific)
+    - "https://www.forexlive.com/feed/news"
+    # FXStreet — confirmed working (30 entries, FX-specific)
+    - "https://www.fxstreet.com/rss/news"
+    # BBC Business — broad macro news, reliable timestamps
+    - "https://feeds.bbci.co.uk/news/business/rss.xml"
+    # CNBC Economy — US macro focus
+    - "https://www.cnbc.com/id/20910258/device/rss/rss.html"
+    # MarketWatch FX
+    - "https://feeds.content.dowjones.io/public/rss/mw_marketpulse"
+  max_articles:    30
+  # 48h window — your feeds update slowly (articles are 25–50h old)
+  # news_feed.py also auto-extends to 72h if still < 2 relevant articles
+  lookback_hours:  48
+
+macro:
+  feature_cols:
+    - mac_yield_z
+    - mac_yield_mom
+    - mac_yield_accel
+    - mac_cb_tone_z
+    - mac_cb_shock_z
+    - mac_macro_strength
+    - mac_vix_global
+    - mac_vix_z
+  window_bars:     168
+  n_states:        3
+  state_labels:
+    - "bullish"
+    - "neutral"
+    - "bearish"
+
+technical:
+  feature_cols:
+    - rsi14
+    - rsi28
+    - macd_norm
+    - macd_hist
+    - roc1
+    - roc3
+    - roc5
+    - atr_pct
+    - atr_ratio
+    - bb_pos
+    - bb_width
+    - ema_cross
+    - price_vs_ema50
+    - sma10_slope
+    - vol_ratio
+    - cmf
+    - body_ratio
+    - upper_shadow
+    - lower_shadow
+    - hour_sin
+    - hour_cos
+    - dow_sin
+    - dow_cos
+  window_bars:     48
+  hidden:          64
+  n_layers:        2
+  dropout:         0.2
+
+sentiment:
+  feature_cols:
+    - nws_sent_signal
+    - nws_sent_mom
+    - nws_sent_fast
+    - nws_sent_slow
+    - nws_sent_pressure
+    - nws_pressure_change
+    - nws_flow_accel
+    - nws_flow_imbalance
+    - nws_news_flow
+    - nws_trend_strength
+  window_bars:     48
+  hidden:          64
+
+signal:
+  min_confidence:      0.38
+  min_agent_agreement: 2
+  position_size_max:   1.0

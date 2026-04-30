@@ -1,0 +1,13 @@
+# Backend-specific dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+websockets>=12.0
+apscheduler>=3.10.0
+watchdog>=3.0.0
+python-multipart>=0.0.6
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+dotenv
+
+# Install fx_alphalab as editable package
+-e ../../fx_alphalab
