@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import type { ChatMessage } from '../Types';
+import { useState, useCallback, useEffect } from 'react';
+import type { ChatMessage, Signal } from '../Types';
 import { API_BASE_URL } from '../config/constants';
 
 interface AlphaBotState {
@@ -9,13 +9,40 @@ interface AlphaBotState {
   mode: 'simple' | 'pro';
 }
 
-export function useAlphaBot(pair: string, useStreaming: boolean = true) {
+export function useAlphaBot(pair: string, signal: Signal | null, useStreaming: boolean = true) {
+  // Load default mode from settings
+  const getInitialMode = (): 'simple' | 'pro' => {
+    try {
+      const stored = localStorage.getItem('fx-alphalab-settings');
+      if (stored) {
+        const settings = JSON.parse(stored);
+        return settings.defaultMode || 'simple';
+      }
+    } catch (err) {
+      console.error('Failed to load default mode:', err);
+    }
+    return 'simple';
+  };
+
   const [state, setState] = useState<AlphaBotState>({
     messages: [],
     isLoading: false,
     error: null,
-    mode: 'simple',
+    mode: getInitialMode(),
   });
+
+  // Auto-send welcome message when pair changes
+  useEffect(() => {
+    if (signal) {
+      const welcomeMessage = formatWelcomeMessage(signal);
+      setState(prev => ({
+        ...prev,
+        messages: [{ role: 'assistant', content: welcomeMessage }],
+      }));
+    } else {
+      setState(prev => ({ ...prev, messages: [] }));
+    }
+  }, [pair, signal]); // Depend on both pair AND signal
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
@@ -184,3 +211,21 @@ export function useAlphaBot(pair: string, useStreaming: boolean = true) {
     clearChat,
   };
 }
+
+function formatWelcomeMessage(signal: Signal): string {
+  const pairName = signal.pair.replace('=X', '');
+  const direction = signal.direction;
+  const confidence = Math.round(signal.confidence * 100);
+  
+  const ageHours = signal.age_hours || 0;
+  const ageText = ageHours < 1 
+    ? 'just now' 
+    : ageHours < 2 
+    ? `${Math.round(ageHours * 60)} min ago`
+    : `${Math.round(ageHours)}h ago`;
+
+  return `We have a ${direction} signal for ${pairName}, but our confidence is only ${confidence}%, which is relatively low. This means we're not extremely sure about the direction.
+
+The reason for the ${direction} signal is that ${signal.reasoning}`;
+}
+

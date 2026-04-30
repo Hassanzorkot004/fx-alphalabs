@@ -3,9 +3,10 @@ import type { CalendarEvent } from '../Types';
 interface EventCalendarPanelProps {
   events: CalendarEvent[];
   selectedPair?: string;
+  onEventClick?: (event: CalendarEvent) => void;
 }
 
-export default function EventCalendarPanel({ events, selectedPair }: EventCalendarPanelProps) {
+export default function EventCalendarPanel({ events, selectedPair, onEventClick }: EventCalendarPanelProps) {
   // Filter to events affecting selected pair if provided
   const filteredEvents = selectedPair
     ? events.filter(e => e.pairs_affected.includes(selectedPair.replace('=X', '')))
@@ -33,7 +34,7 @@ export default function EventCalendarPanel({ events, selectedPair }: EventCalend
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {upcomingEvents.map((event, idx) => (
-            <EventItem key={idx} event={event} />
+            <EventItem key={idx} event={event} onClick={onEventClick} />
           ))}
         </div>
       )}
@@ -41,7 +42,7 @@ export default function EventCalendarPanel({ events, selectedPair }: EventCalend
   );
 }
 
-function EventItem({ event }: { event: CalendarEvent }) {
+function EventItem({ event, onClick }: { event: CalendarEvent; onClick?: (event: CalendarEvent) => void }) {
   const impactColor = 
     event.impact === 'high' ? 'var(--red)' :
     event.impact === 'medium' ? 'var(--amber)' :
@@ -51,13 +52,21 @@ function EventItem({ event }: { event: CalendarEvent }) {
   const isPassed = event.status === 'passed';
 
   return (
-    <div style={{
-      padding: 10,
-      background: 'var(--bg3)',
-      border: '1px solid var(--border)',
-      borderRadius: 6,
-      opacity: isPassed ? 0.5 : 1,
-    }}>
+    <div 
+      onClick={() => onClick?.(event)}
+      title="Click to ask AlphaBot about this"
+      style={{
+        padding: 10,
+        background: 'var(--bg3)',
+        border: '1px solid var(--border)',
+        borderRadius: 6,
+        opacity: isPassed ? 0.5 : 1,
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
+        position: 'relative',
+      }}
+      className="hover:border-amber hover:bg-bg2"
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <div style={{
           width: 6,
@@ -81,6 +90,17 @@ function EventItem({ event }: { event: CalendarEvent }) {
           {event.previous && <span>Previous: {event.previous}</span>}
         </div>
       )}
+      <div className="mono" style={{ 
+        fontSize: 9, 
+        color: 'var(--amber)', 
+        marginTop: 6,
+        opacity: 0,
+        transition: 'opacity 0.2s ease',
+      }}
+      className="event-hint"
+      >
+        💬 Ask about this
+      </div>
     </div>
   );
 }

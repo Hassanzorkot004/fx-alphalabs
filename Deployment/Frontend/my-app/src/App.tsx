@@ -1,18 +1,37 @@
 import { useState } from 'react';
 import { useSignals } from './hooks/useSignals';
+import { useRef } from 'react';
+import type { NewsArticle, CalendarEvent } from './Types';
 import TickerStrip from './components/TickerStrip';
 import SignalCard from './components/SignalCard';
 import AlphaBotPanel from './components/AlphaBotPanel';
-import PerfStatsPanel from './components/PerfStatsPanel';
 import EventCalendarPanel from './components/EventCalendarPanel';
 import NewsFeedPanel from './components/NewsFeedPanel';
 
 export default function App() {
   const { signals, history, stats, calendar, news, prices, connected, lastUpdate } = useSignals();
   const [selectedPair, setSelectedPair] = useState<string | null>(null);
+  const alphaBotSendRef = useRef<((msg: string) => Promise<void>) | null>(null);
 
   // Auto-select first signal if none selected
   const activePair = selectedPair || signals[0]?.pair || 'EURUSD=X';
+  const activeSignal = signals.find(s => s.pair === activePair) || null;
+
+  // Handle news article click
+  const handleNewsClick = (article: NewsArticle) => {
+    if (alphaBotSendRef.current) {
+      const pairName = activePair.replace('=X', '');
+      alphaBotSendRef.current(`How does this news affect ${pairName}? "${article.title}"`);
+    }
+  };
+
+  // Handle calendar event click
+  const handleEventClick = (event: CalendarEvent) => {
+    if (alphaBotSendRef.current) {
+      const pairName = activePair.replace('=X', '');
+      alphaBotSendRef.current(`How will "${event.event}" (${event.currency}) impact ${pairName}?`);
+    }
+  };
 
   return (
     <div style={{ 
@@ -90,13 +109,23 @@ export default function App() {
           {/* Workspace: AlphaBot + Right Panel */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: 20 }}>
             {/* AlphaBot */}
-            <AlphaBotPanel pair={activePair.replace('=X', '')} />
+            <AlphaBotPanel 
+              pair={activePair.replace('=X', '')} 
+              signal={activeSignal}
+              onSendMessage={(fn) => { alphaBotSendRef.current = fn; }}
+            />
 
             {/* Right Panel */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <PerfStatsPanel stats={stats} />
-              <EventCalendarPanel events={calendar} selectedPair={activePair} />
-              <NewsFeedPanel articles={news} />
+              <EventCalendarPanel 
+                events={calendar} 
+                selectedPair={activePair}
+                onEventClick={handleEventClick}
+              />
+              <NewsFeedPanel 
+                articles={news}
+                onArticleClick={handleNewsClick}
+              />
             </div>
           </div>
 

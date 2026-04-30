@@ -83,3 +83,9 @@ body { background: var(--bg); }
 .animate-fade-in   { animation: fade-in 0.4s ease forwards; }
 .animate-flash-green { animation: price-flash-green 0.6s ease; }
 .animate-flash-red   { animation: price-flash-red 0.6s ease; }
+
+/* Hover hints for clickable items */
+div:hover > .article-hint,
+div:hover > .event-hint {
+  opacity: 1 !important;
+}

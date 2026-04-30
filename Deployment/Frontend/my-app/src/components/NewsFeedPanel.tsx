@@ -2,9 +2,10 @@ import type { NewsArticle } from '../Types';
 
 interface NewsFeedPanelProps {
   articles: NewsArticle[];
+  onArticleClick?: (article: NewsArticle) => void;
 }
 
-export default function NewsFeedPanel({ articles }: NewsFeedPanelProps) {
+export default function NewsFeedPanel({ articles, onArticleClick }: NewsFeedPanelProps) {
   const recentArticles = articles.slice(0, 10);
 
   return (
@@ -27,7 +28,7 @@ export default function NewsFeedPanel({ articles }: NewsFeedPanelProps) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {recentArticles.map((article, idx) => (
-            <ArticleItem key={idx} article={article} />
+            <ArticleItem key={idx} article={article} onClick={onArticleClick} />
           ))}
         </div>
       )}
@@ -35,17 +36,21 @@ export default function NewsFeedPanel({ articles }: NewsFeedPanelProps) {
   );
 }
 
-function ArticleItem({ article }: { article: NewsArticle }) {
+function ArticleItem({ article, onClick }: { article: NewsArticle; onClick?: (article: NewsArticle) => void }) {
   return (
-    <div style={{
-      padding: 10,
-      background: 'var(--bg3)',
-      border: '1px solid var(--border)',
-      borderRadius: 6,
-      cursor: 'pointer',
-      transition: 'border-color 0.2s ease',
-    }}
-    className="hover:border-border2"
+    <div 
+      onClick={() => onClick?.(article)}
+      title="Click to ask AlphaBot about this"
+      style={{
+        padding: 10,
+        background: 'var(--bg3)',
+        border: '1px solid var(--border)',
+        borderRadius: 6,
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
+        position: 'relative',
+      }}
+      className="hover:border-amber hover:bg-bg2"
     >
       <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
         {article.tags.map(tag => (
@@ -70,6 +75,17 @@ function ArticleItem({ article }: { article: NewsArticle }) {
       </div>
       <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.4 }}>
         {article.title}
+      </div>
+      <div className="mono" style={{ 
+        fontSize: 9, 
+        color: 'var(--amber)', 
+        marginTop: 6,
+        opacity: 0,
+        transition: 'opacity 0.2s ease',
+      }}
+      className="article-hint"
+      >
+        💬 Ask about this
       </div>
     </div>
   );
