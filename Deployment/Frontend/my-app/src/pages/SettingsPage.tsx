@@ -110,7 +110,10 @@ export default function SettingsPage() {
         </Section>
 
         {/* Default Mode Section */}
-        <Section title="Default AlphaBot Mode" description="Choose your preferred explanation style">
+        <Section 
+          title="Default AlphaBot Mode" 
+          description="Choose your preferred explanation style. You can quickly toggle this in the chat header."
+        >
           <div style={{ display: 'flex', gap: 12 }}>
             <ModeButton
               label="Simple"

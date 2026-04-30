@@ -1,18 +1,24 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAlphaBot } from '../hooks/useAlphaBot';
+import type { Signal } from '../Types';
 
 interface AlphaBotPanelProps {
   pair: string;
+  signal: Signal | null;
+  onSendMessage?: (fn: (message: string) => Promise<void>) => void;
 }
 
-export default function AlphaBotPanel({ pair }: AlphaBotPanelProps) {
-  const { messages, isLoading, error, mode, sendMessage, toggleMode, clearChat } = useAlphaBot(pair);
+export default function AlphaBotPanel({ pair, signal, onSendMessage }: AlphaBotPanelProps) {
+  const { messages, isLoading, error, mode, sendMessage, toggleMode, clearChat } = useAlphaBot(pair, signal);
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Expose sendMessage to parent
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (onSendMessage) {
+      onSendMessage(sendMessage);
+    }
+  }, [sendMessage, onSendMessage]);
 
   const handleSend = () => {
     if (input.trim() && !isLoading) {
@@ -28,11 +34,11 @@ export default function AlphaBotPanel({ pair }: AlphaBotPanelProps) {
     }
   };
 
-  const commandChips = [
-    '/explain',
-    '/agents',
-    '/risk',
-    '/levels',
+  const exampleQuestions = [
+    "Why this direction?",
+    "What's the risk?",
+    "Show me the trade levels",
+    "What do the agents say?",
   ];
 
   return (
@@ -43,7 +49,8 @@ export default function AlphaBotPanel({ pair }: AlphaBotPanelProps) {
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
-      minHeight: 500,
+      minHeight: 920,
+      maxHeight: 'calc(100vh - 200px)',
     }}>
       {/* Header */}
       <div style={{
@@ -64,6 +71,7 @@ export default function AlphaBotPanel({ pair }: AlphaBotPanelProps) {
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={toggleMode}
+            title="Toggle explanation style (quick override)"
             style={{
               background: mode === 'pro' ? 'var(--amber)20' : 'var(--bg3)',
               border: `1px solid ${mode === 'pro' ? 'var(--amber)' : 'var(--border)'}`,
@@ -139,13 +147,16 @@ export default function AlphaBotPanel({ pair }: AlphaBotPanelProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Command chips */}
-      {messages.length === 0 && (
-        <div style={{ padding: '0 16px 12px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {commandChips.map(cmd => (
+      {/* Example questions - always visible */}
+      <div style={{ padding: '0 16px 12px', borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+        <div className="mono" style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Quick questions:
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {exampleQuestions.map(question => (
             <button
-              key={cmd}
-              onClick={() => setInput(cmd + ' ')}
+              key={question}
+              onClick={() => setInput(question)}
               style={{
                 background: 'var(--bg3)',
                 border: '1px solid var(--border)',
@@ -158,11 +169,11 @@ export default function AlphaBotPanel({ pair }: AlphaBotPanelProps) {
               }}
               className="hover:border-amber"
             >
-              {cmd}
+              {question}
             </button>
           ))}
         </div>
-      )}
+      </div>
 
       {/* Input */}
       <div style={{
@@ -235,11 +246,11 @@ function MessageBubble({ message }: { message: { role: string; content: string }
         background: isUser ? 'var(--amber)20' : 'var(--bg3)',
         border: `1px solid ${isUser ? 'var(--amber)40' : 'var(--border)'}`,
         color: 'var(--text)',
-        padding: '10px 14px',
+        padding: '12px 16px',
         borderRadius: 8,
-        maxWidth: '80%',
+        maxWidth: '75%',
         fontSize: 13,
-        lineHeight: 1.5,
+        lineHeight: 1.6,
         whiteSpace: 'pre-wrap',
       }}>
         {message.content}
