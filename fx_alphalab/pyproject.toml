@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fx-alphalab"
+version = "2.0.0"
+description = "Multi-agent FX trading signal system with LLM orchestration"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "torch>=2.2.0",
+    "yfinance>=0.2.36",
+    "pandas>=2.1.0",
+    "numpy>=1.26.0",
+    "scikit-learn>=1.4.0",
+    "hmmlearn>=0.3.2",
+    "feedparser>=6.0.10",
+    "requests>=2.31.0",
+    "pyyaml>=6.0.1",
+    "loguru>=0.7.0",
+    "pyarrow>=14.0.0",
+    "scipy>=1.12.0",
+    "ollama>=0.2.0",
+    "groq>=0.4.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "black>=23.0", "mypy>=1.0"]
+
+[project.scripts]
+fx-train = "fx_alphalab.scripts.train_agents:main"
+fx-run = "fx_alphalab.scripts.run_agent:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fx_alphalab*"]
