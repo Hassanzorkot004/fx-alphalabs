@@ -1,105 +1,176 @@
-import type { Signal } from '../Types';
-import { fmtTime, fmtSize, agreementColor, pairLabel } from '../utils/formatters';
+import type { Signal, Price } from '../Types';
+import { PAIR_DECIMALS } from '../config/constants';
 
-interface Props {
-  signal:     Signal;
+interface SignalCardProps {
+  signal: Signal;
+  price?: Price;
   isSelected: boolean;
-  onClick:    () => void;
+  onClick: () => void;
 }
 
-function AgentPill({ label, value, match, conflict }: { label: string; value: string; match?: boolean; conflict?: boolean }) {
-  const base: React.CSSProperties = {
-    fontFamily: 'var(--font-mono)', fontSize: 10, padding: '2px 8px',
-    borderRadius: 99, border: '1px solid',
-  };
-  if (match)    return <span style={{ ...base, background: 'rgba(0,217,126,0.1)', color: 'var(--buy)', borderColor: 'rgba(0,217,126,0.3)' }}>{label}: {value}</span>;
-  if (conflict) return <span style={{ ...base, background: 'rgba(255,77,109,0.1)', color: 'var(--sell)', borderColor: 'rgba(255,77,109,0.3)' }}>{label}: {value}</span>;
-  return <span style={{ ...base, background: 'transparent', color: 'var(--text-muted)', borderColor: 'var(--border)' }}>{label}: {value}</span>;
-}
+export default function SignalCardNew({ signal, price, isSelected, onClick }: SignalCardProps) {
+  const pair = signal.pair.replace('=X', '');
+  const decimals = PAIR_DECIMALS[pair] || 5;
+  
+  // Direction color
+  const directionColor = 
+    signal.direction === 'BUY' ? 'var(--green)' :
+    signal.direction === 'SELL' ? 'var(--red)' :
+    'var(--text3)';
 
-function dirStyle(dir: string): React.CSSProperties {
-  if (dir === 'BUY')  return { background: 'rgba(0,217,126,0.12)', color: 'var(--buy)',  border: '1px solid rgba(0,217,126,0.3)' };
-  if (dir === 'SELL') return { background: 'rgba(255,77,109,0.12)', color: 'var(--sell)', border: '1px solid rgba(255,77,109,0.3)' };
-  return { background: 'rgba(107,114,128,0.15)', color: 'var(--hold)', border: '1px solid rgba(107,114,128,0.3)' };
-}
+  // Agreement badge color
+  const agreementColor =
+    signal.agent_agreement === 'FULL' ? 'var(--green)' :
+    signal.agent_agreement === 'PARTIAL' ? 'var(--amber)' :
+    'var(--text3)';
 
-export default function SignalCard({ signal, isSelected, onClick }: Props) {
-  const { pair, direction, confidence, position_size, macro_regime,
-          tech_signal, sent_signal, agent_agreement, timestamp, source } = signal;
+  // Lifecycle status
+  const lifecycleColor =
+    signal.lifecycle_status === 'active' ? 'var(--green)' :
+    signal.lifecycle_status === 'near_expiry' ? 'var(--amber)' :
+    'var(--text3)';
 
-  const dir     = direction === 'BUY' ? 1 : direction === 'SELL' ? -1 : 0;
-  const techDir = tech_signal?.includes('BUY') ? 1 : tech_signal?.includes('SELL') ? -1 : 0;
-  const sentDir = sent_signal?.includes('HOLD') || sent_signal?.includes('LOW') ? 0 : sent_signal?.includes('BUY') ? 1 : -1;
-  const macDir  = macro_regime === 'bullish' ? 1 : macro_regime === 'bearish' ? -1 : 0;
+  const lifecycleLabel =
+    signal.lifecycle_status === 'active' ? 'Active' :
+    signal.lifecycle_status === 'near_expiry' ? 'Near Expiry' :
+    'Expired';
 
-  const pct = Math.round(parseFloat(String(confidence)) * 100);
-  const barColor = direction === 'BUY' ? 'var(--buy)' : direction === 'SELL' ? 'var(--sell)' : 'var(--hold)';
+  // Current price display
+  const currentPrice = price?.price || signal.price_at_signal || 0;
+  const priceChange = price?.change || 0;
+  const priceChangePct = price?.change_pct || 0;
 
   return (
     <div
       onClick={onClick}
-      className="animate-slide-up"
       style={{
-        background: 'var(--card)',
-        border: `1px solid ${isSelected ? 'var(--info)' : 'var(--border)'}`,
-        borderRadius: 12, cursor: 'pointer',
-        boxShadow: isSelected ? '0 0 0 1px rgba(56,189,248,0.2)' : 'none',
-        opacity: direction === 'HOLD' ? 0.65 : 1,
-        transition: 'border-color 0.15s, box-shadow 0.15s',
+        background: 'var(--bg2)',
+        border: `1px solid ${isSelected ? 'var(--amber)' : 'var(--border)'}`,
+        borderRadius: 8,
+        padding: 16,
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
+        borderBottomWidth: isSelected ? 3 : 1,
+        borderBottomColor: isSelected ? 'var(--amber)' : 'var(--border)',
       }}
+      className="hover:border-border2"
     >
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px 10px', borderBottom: '1px solid var(--border)' }}>
+      {/* Header: Pair + Price */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div>
-          <div className="mono" style={{ fontSize: 15, fontWeight: 600, color: '#fff', letterSpacing: '0.05em' }}>
-            {pairLabel(pair)}
+          <div className="mono" style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>
+            {pair}
           </div>
-          <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-            {fmtTime(timestamp)}
+          <div className="mono" style={{ fontSize: 11, color: 'var(--text3)' }}>
+            {signal.age_hours ? `${signal.age_hours.toFixed(1)}h ago` : ''}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          {source === 'groq' && (
-            <span className="mono" style={{ fontSize: 10, color: 'var(--info)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px' }}>
-              groq
-            </span>
+        <div style={{ textAlign: 'right' }}>
+          <div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>
+            {currentPrice.toFixed(decimals)}
+          </div>
+          {price && (
+            <div className="mono" style={{ 
+              fontSize: 11, 
+              color: priceChange >= 0 ? 'var(--green)' : 'var(--red)' 
+            }}>
+              {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(decimals)} ({priceChangePct >= 0 ? '+' : ''}{priceChangePct.toFixed(2)}%)
+            </div>
           )}
-          <span className="mono" style={{ ...dirStyle(direction), fontSize: 12, fontWeight: 600, padding: '4px 12px', borderRadius: 8 }}>
-            {direction}
+        </div>
+      </div>
+
+      {/* Direction + Agreement */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <div style={{
+          background: directionColor + '20',
+          color: directionColor,
+          padding: '4px 10px',
+          borderRadius: 4,
+          fontSize: 12,
+          fontWeight: 600,
+          border: `1px solid ${directionColor}40`,
+        }}>
+          {signal.direction}
+        </div>
+        <div style={{
+          background: agreementColor + '20',
+          color: agreementColor,
+          padding: '4px 10px',
+          borderRadius: 4,
+          fontSize: 11,
+          fontWeight: 500,
+          border: `1px solid ${agreementColor}40`,
+        }}>
+          {signal.agent_agreement}
+        </div>
+        <div style={{
+          background: lifecycleColor + '20',
+          color: lifecycleColor,
+          padding: '4px 10px',
+          borderRadius: 4,
+          fontSize: 11,
+          fontWeight: 500,
+          border: `1px solid ${lifecycleColor}40`,
+          marginLeft: 'auto',
+        }}>
+          {lifecycleLabel}
+        </div>
+      </div>
+
+      {/* Confidence bar */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span style={{ fontSize: 11, color: 'var(--text3)' }}>Confidence</span>
+          <span className="mono" style={{ fontSize: 11, color: 'var(--text2)' }}>
+            {(signal.confidence * 100).toFixed(0)}%
           </span>
         </div>
-      </div>
-
-      {/* Body */}
-      <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {/* Confidence bar */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-            <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)' }}>confidence</span>
-            <span className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pct}%</span>
-          </div>
-          <div style={{ height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${pct}%`, background: barColor, borderRadius: 2, transition: 'width 0.5s ease' }} />
-          </div>
-        </div>
-
-        {/* Agent pills */}
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-          <AgentPill label="macro" value={macro_regime} match={macDir === dir && dir !== 0} conflict={macDir === -dir && dir !== 0} />
-          <AgentPill label="tech"  value={tech_signal?.split(' ')[0] || '--'} match={techDir === dir && dir !== 0} conflict={techDir === -dir && dir !== 0} />
-          <AgentPill label="sent"  value={sent_signal?.includes('LOW') ? 'LOW' : sent_signal?.split(' ')[0] || '--'} match={sentDir === dir && dir !== 0} conflict={sentDir === -dir && dir !== 0} />
+        <div style={{ 
+          height: 4, 
+          background: 'var(--bg4)', 
+          borderRadius: 2, 
+          overflow: 'hidden' 
+        }}>
+          <div style={{
+            height: '100%',
+            width: `${signal.confidence * 100}%`,
+            background: `linear-gradient(90deg, ${directionColor}, ${directionColor}80)`,
+            transition: 'width 0.3s ease',
+          }} />
         </div>
       </div>
 
-      {/* Footer */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderTop: '1px solid var(--border)' }}>
-        <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          size <span style={{ color: '#fff', fontWeight: 500 }}>{fmtSize(position_size)}</span>
-        </span>
-        <span className="mono" style={{ fontSize: 11, color: agreementColor(agent_agreement), fontWeight: 500 }}>
-          {agent_agreement}
-        </span>
+      {/* Agent pills */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <AgentPill label="Macro" signal={signal.macro_regime} />
+        <AgentPill label="Tech" signal={signal.tech_signal} />
+        <AgentPill label="Sent" signal={signal.sent_signal} />
       </div>
+    </div>
+  );
+}
+
+function AgentPill({ label, signal }: { label: string; signal: string }) {
+  const signalUpper = signal.toUpperCase();
+  const color = 
+    signalUpper.includes('BUY') || signalUpper.includes('BULLISH') ? 'var(--green)' :
+    signalUpper.includes('SELL') || signalUpper.includes('BEARISH') ? 'var(--red)' :
+    'var(--text3)';
+
+  return (
+    <div style={{
+      background: 'var(--bg3)',
+      border: `1px solid ${color}40`,
+      borderRadius: 12,
+      padding: '4px 10px',
+      fontSize: 10,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+    }}>
+      <span style={{ color: 'var(--text3)', fontWeight: 500 }}>{label}</span>
+      <span style={{ color, fontWeight: 600 }}>{signal}</span>
     </div>
   );
 }

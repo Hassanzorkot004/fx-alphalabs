@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FX AlphaLab</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5/index.css">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #0a0906;
+  --bg1:     #0f0d0a;
+  --bg2:     #141210;
+  --bg3:     #1c1916;
+  --bg4:     #242018;
+  --border:  #2a2520;
+  --border2: #3a332a;
+  --amber:   #e8a030;
+  --amber2:  #c8841a;
+  --amber-d: rgba(232,160,48,0.08);
+  --amber-d2:rgba(232,160,48,0.15);
+  --text:    #e8e0d0;
+  --text2:   #a09080;
+  --text3:   #605848;
+  --green:   #3db87a;
+  --green-d: rgba(61,184,122,0.1);
+  --red:     #d45c4a;
+  --red-d:   rgba(212,92,74,0.1);
+  --blue:    #5a9fd4;
+  --yellow:  #c8a030;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── LAYOUT ─────────────────────────────── */
+.shell { display: flex; flex-direction: column; height: 100vh; }
+
+/* ── TOP FUNCTION BAR ───────────────────── */
+.fn-bar {
+  display: flex; align-items: center;
+  background: var(--bg1); border-bottom: 1px solid var(--border);
+  height: 30px; flex-shrink: 0; overflow: hidden;
+  font-family: var(--mono); font-size: 10px;
+}
+.fn-tab {
+  padding: 0 14px; height: 100%; display: flex; align-items: center;
+  gap: 6px; border-right: 1px solid var(--border);
+  cursor: pointer; color: var(--text2); transition: background .1s, color .1s;
+  white-space: nowrap;
+}
+.fn-tab:hover { background: var(--bg3); color: var(--text); }
+.fn-tab.active { background: var(--amber); color: #0a0906; font-weight: 600; }
+.fn-key { font-weight: 700; font-size: 9px; }
+.fn-name { font-size: 9px; letter-spacing: .04em; }
+.fn-right {
+  margin-left: auto; display: flex; align-items: center; gap: 0;
+  border-left: 1px solid var(--border);
+}
+.sys-info {
+  padding: 0 12px; height: 100%; display: flex; align-items: center;
+  gap: 6px; font-size: 9px; color: var(--text3); border-right: 1px solid var(--border);
+}
+.sys-live { color: var(--green); }
+.sys-time { font-family: var(--mono); color: var(--amber); }
+
+/* ── TICKER STRIP ───────────────────────── */
+.ticker {
+  height: 24px; background: var(--bg2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; overflow: hidden; flex-shrink: 0;
+  font-family: var(--mono); font-size: 10px; gap: 0;
+}
+.tick-item {
+  padding: 0 14px; height: 100%; display: flex; align-items: center; gap: 6px;
+  border-right: 1px solid var(--border); white-space: nowrap; flex-shrink: 0;
+}
+.tick-sym { color: var(--amber); font-weight: 600; font-size: 10px; }
+.tick-price { color: var(--text); }
+.tick-chg.pos { color: var(--green); }
+.tick-chg.neg { color: var(--red); }
+
+/* ── MAIN BODY ──────────────────────────── */
+.body { display: flex; flex: 1; overflow: hidden; }
+
+/* ── LEFT NAV ───────────────────────────── */
+.leftnav {
+  width: 36px; background: var(--bg1); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; align-items: center; padding-top: 8px;
+  gap: 2px; flex-shrink: 0;
+}
+.nav-icon {
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--text3); border-radius: 3px;
+  transition: background .1s, color .1s; font-size: 13px;
+}
+.nav-icon:hover { background: var(--bg3); color: var(--text2); }
+.nav-icon.active { color: var(--amber); background: var(--amber-d); }
+.nav-sep { width: 20px; height: 1px; background: var(--border); margin: 4px 0; }
+
+/* ── CENTER ─────────────────────────────── */
+.center { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── SIGNAL STRIP ───────────────────────── */
+.signal-strip {
+  display: grid; grid-template-columns: repeat(3,1fr);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.sig-card {
+  padding: 10px 14px; border-right: 1px solid var(--border);
+  cursor: pointer; transition: background .15s;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.sig-card:last-child { border-right: none; }
+.sig-card:hover { background: var(--bg2); }
+.sig-card.selected { background: var(--bg2); border-bottom: 2px solid var(--amber); }
+.sig-top { display: flex; align-items: flex-start; justify-content: space-between; }
+.sig-pair { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--amber); letter-spacing: .04em; }
+.sig-price { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+.sig-badges { display: flex; gap: 4px; align-items: center; }
+.dir { font-family: var(--mono); font-size: 10px; font-weight: 700; padding: 2px 7px; border: 1px solid; letter-spacing: .06em; }
+.dir.BUY  { color: var(--green); border-color: rgba(61,184,122,0.4); background: var(--green-d); }
+.dir.SELL { color: var(--red);   border-color: rgba(212,92,74,0.4);  background: var(--red-d); }
+.dir.HOLD { color: var(--text2); border-color: var(--border2); }
+.agr { font-size: 9px; font-family: var(--mono); padding: 2px 6px; border: 1px solid; letter-spacing: .04em; }
+.agr.FULL    { color: var(--green); border-color: rgba(61,184,122,0.3); }
+.agr.PARTIAL { color: var(--yellow); border-color: rgba(200,160,48,0.3); }
+.agr.CONFLICT{ color: var(--amber); border-color: rgba(232,160,48,0.3); }
+
+.sig-agents { display: flex; gap: 4px; }
+.agt { font-family: var(--mono); font-size: 9px; padding: 2px 6px; background: var(--bg3); border: 1px solid var(--border); color: var(--text3); }
+.agt.bear { color: var(--red); }
+.agt.bull { color: var(--green); }
+.agt.neut { color: var(--text3); }
+
+.sig-conf-row { display: flex; align-items: center; gap: 6px; }
+.conf-track { flex: 1; height: 2px; background: var(--bg4); }
+.conf-fill { height: 2px; }
+.sig-meta { font-family: var(--mono); font-size: 9px; color: var(--text3); display: flex; justify-content: space-between; }
+.meta-active { color: var(--green); }
+.meta-warn   { color: var(--yellow); }
+
+/* ── MAIN WORKSPACE ─────────────────────── */
+.workspace { display: flex; flex: 1; overflow: hidden; }
+
+/* ── ALPHABOT PANEL ─────────────────────── */
+.bot-panel {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  border-right: 1px solid var(--border);
+}
+.bot-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px; background: var(--bg1); border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.bot-title { font-family: var(--mono); font-size: 11px; color: var(--amber); font-weight: 700; letter-spacing: .06em; }
+.bot-subtitle { font-size: 10px; color: var(--text3); }
+.lang-toggle {
+  display: flex; border: 1px solid var(--border2); overflow: hidden;
+  font-family: var(--mono); font-size: 9px;
+}
+.lang-btn {
+  padding: 3px 10px; cursor: pointer; background: transparent; border: none;
+  color: var(--text3); transition: background .1s, color .1s; letter-spacing: .06em;
+}
+.lang-btn.active { background: var(--amber); color: #0a0906; font-weight: 700; }
+
+/* ── CHAT MESSAGES ──────────────────────── */
+.chat-msgs {
+  flex: 1; overflow-y: auto; padding: 16px 14px;
+  display: flex; flex-direction: column; gap: 14px;
+  scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
+}
+
+.msg { display: flex; flex-direction: column; gap: 4px; }
+.msg-user { align-items: flex-end; }
+.msg-bot  { align-items: flex-start; }
+
+.msg-bubble {
+  max-width: 88%; padding: 10px 13px; line-height: 1.65;
+  font-size: 12px;
+}
+.msg-user .msg-bubble {
+  background: var(--amber-d2); border: 1px solid rgba(232,160,48,0.25);
+  color: var(--text); font-family: var(--mono);
+}
+.msg-bot .msg-bubble {
+  background: var(--bg2); border: 1px solid var(--border);
+  color: var(--text2);
+}
+.msg-meta {
+  font-family: var(--mono); font-size: 9px; color: var(--text3); padding: 0 2px;
+}
+
+/* Signal embed in chat */
+.chat-signal {
+  border: 1px solid var(--border2); background: var(--bg3);
+  margin-top: 8px; padding: 10px 12px;
+}
+.cs-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.cs-pair { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--amber); }
+.cs-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.cs-cell { background: var(--bg4); padding: 6px 8px; }
+.cs-label { font-size: 9px; color: var(--text3); letter-spacing: .07em; text-transform: uppercase; margin-bottom: 2px; }
+.cs-val { font-family: var(--mono); font-size: 11px; font-weight: 600; }
+.cs-reasoning {
+  font-size: 11px; color: var(--text2); line-height: 1.65;
+  border-top: 1px solid var(--border); padding-top: 8px; margin-top: 2px;
+}
+.cs-driver {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--amber-d); color: var(--amber);
+  font-family: var(--mono); font-size: 10px; padding: 2px 7px;
+  border: 1px solid rgba(232,160,48,0.2); margin-top: 6px;
+}
+
+/* Conflict insight embed */
+.chat-conflict {
+  border-left: 2px solid var(--amber); background: var(--amber-d);
+  padding: 10px 12px; margin-top: 8px; font-size: 11px; color: var(--text2); line-height: 1.65;
+}
+.conflict-head { color: var(--amber); font-family: var(--mono); font-size: 10px; font-weight: 700; margin-bottom: 5px; }
+.conflict-stat { font-family: var(--mono); color: var(--amber); font-weight: 700; }
+
+/* Agents embed */
+.chat-agents { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.chat-agent {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg3); border: 1px solid var(--border);
+  padding: 7px 10px; font-size: 11px;
+}
+.ca-name { font-family: var(--mono); font-size: 10px; color: var(--text3); width: 60px; flex-shrink: 0; }
+.ca-verdict { font-family: var(--mono); font-size: 11px; font-weight: 700; width: 55px; flex-shrink: 0; }
+.ca-driver { flex: 1; color: var(--text3); font-size: 10px; }
+.ca-val { font-family: var(--mono); font-size: 10px; color: var(--text2); }
+
+/* Command suggestions */
+.cmd-suggestions {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;
+}
+.cmd-chip {
+  font-family: var(--mono); font-size: 10px; color: var(--amber2);
+  background: transparent; border: 1px solid var(--border2);
+  padding: 3px 9px; cursor: pointer; transition: background .1s, border-color .1s;
+  letter-spacing: .03em;
+}
+.cmd-chip:hover { background: var(--amber-d); border-color: rgba(232,160,48,0.4); color: var(--amber); }
+
+/* ── INPUT AREA ─────────────────────────── */
+.bot-input-area {
+  border-top: 1px solid var(--border); background: var(--bg1); padding: 10px 14px;
+  flex-shrink: 0;
+}
+.shortcuts-row {
+  display: flex; gap: 10px; margin-bottom: 8px; flex-wrap: wrap;
+}
+.shortcut {
+  font-family: var(--mono); font-size: 9px; color: var(--text3);
+  display: flex; gap: 5px;
+}
+.shortcut-cmd { color: var(--amber2); }
+.shortcut-desc { color: var(--text3); }
+
+.input-row {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border2); background: var(--bg2); padding: 8px 10px;
+  transition: border-color .15s;
+}
+.input-row:focus-within { border-color: var(--amber); }
+.prompt { font-family: var(--mono); font-size: 11px; color: var(--amber); flex-shrink: 0; }
+.bot-input {
+  flex: 1; background: transparent; border: none; outline: none;
+  font-family: var(--mono); font-size: 11px; color: var(--text);
+  caret-color: var(--amber);
+}
+.bot-input::placeholder { color: var(--text3); }
+.send-btn {
+  background: var(--amber); border: none; color: #0a0906;
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  padding: 4px 10px; cursor: pointer; letter-spacing: .04em;
+  transition: background .1s;
+}
+.send-btn:hover { background: #f0b040; }
+.input-meta { font-family: var(--mono); font-size: 9px; color: var(--text3); text-align: right; margin-top: 4px; }
+
+/* ── RIGHT PANEL ─────────────────────────── */
+.right-panel {
+  width: 240px; flex-shrink: 0; display: flex; flex-direction: column;
+  overflow: hidden; background: var(--bg1);
+}
+.rp-section { border-bottom: 1px solid var(--border); }
+.rp-header {
+  padding: 7px 12px; background: var(--bg2); border-bottom: 1px solid var(--border);
+  font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .1em;
+  color: var(--amber); display: flex; align-items: center; gap: 6px;
+}
+.rp-live-dot {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--green);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* Events */
+.events-list { padding: 6px 0; overflow-y: auto; }
+.event-row {
+  padding: 6px 12px; display: flex; align-items: flex-start; gap: 8px;
+  border-bottom: 1px solid var(--border); cursor: default;
+  transition: background .1s;
+}
+.event-row:hover { background: var(--bg2); }
+.event-row:last-child { border-bottom: none; }
+.ev-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 3px; flex-shrink: 0; }
+.ev-dot.high { background: var(--red); box-shadow: 0 0 4px var(--red); }
+.ev-dot.med  { background: var(--yellow); }
+.ev-dot.low  { background: var(--text3); }
+.ev-body { flex: 1; }
+.ev-time { font-family: var(--mono); font-size: 9px; color: var(--text3); }
+.ev-name { font-size: 10px; color: var(--text2); margin-top: 1px; }
+.ev-pair { font-family: var(--mono); font-size: 9px; color: var(--text3); }
+.ev-row.upcoming .ev-name { color: var(--text); }
+.ev-row.high-imp .ev-name { color: var(--red); }
+
+/* News */
+.news-list { flex: 1; overflow-y: auto; padding: 0; }
+.news-item {
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background .1s;
+}
+.news-item:hover { background: var(--bg2); }
+.news-head { font-size: 10px; color: var(--text2); line-height: 1.4; margin-bottom: 3px; }
+.news-meta { font-family: var(--mono); font-size: 9px; color: var(--text3); display: flex; gap: 6px; }
+.news-tag { color: var(--amber2); }
+
+/* Stats strip */
+.stats-row {
+  display: grid; grid-template-columns: repeat(2,1fr); gap: 1px;
+  background: var(--border);
+}
+.stat-box { background: var(--bg1); padding: 8px 12px; }
+.stat-lbl { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: .07em; }
+.stat-val { font-family: var(--mono); font-size: 15px; font-weight: 700; line-height: 1.2; }
+.stat-val.pos { color: var(--green); }
+.stat-val.neg { color: var(--red); }
+.stat-val.neu { color: var(--text); }
+.stat-sub { font-size: 9px; color: var(--text3); margin-top: 1px; }
+.stat-tag {
+  font-size: 8px; color: var(--blue); background: rgba(90,159,212,0.1);
+  border: 1px solid rgba(90,159,212,0.2); padding: 1px 4px; display: inline-block; margin-top: 2px;
+}
+
+/* ── STATUS BAR ─────────────────────────── */
+.statusbar {
+  height: 20px; background: var(--bg2); border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0; font-family: var(--mono);
+  font-size: 9px; flex-shrink: 0;
+}
+.sb-item {
+  padding: 0 12px; height: 100%; display: flex; align-items: center; gap: 5px;
+  border-right: 1px solid var(--border); color: var(--text3);
+}
+.sb-item.ok { color: var(--green); }
+.sb-item.warn { color: var(--yellow); }
+.sb-right { margin-left: auto; }
+
+/* ── TYPING ANIMATION ───────────────────── */
+.typing { display: flex; gap: 3px; padding: 2px 0; }
+.typing span {
+  width: 4px; height: 4px; background: var(--amber); border-radius: 50%;
+  animation: blink 1.2s infinite;
+}
+.typing span:nth-child(2) { animation-delay: .2s; }
+.typing span:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%,80%,100%{opacity:.2} 40%{opacity:1} }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border2); }
+::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- TOP FUNCTION BAR -->
+<div class="fn-bar">
+  <div class="fn-tab active" onclick="setTab(this,'dash')"><span class="fn-key">F1</span><span class="fn-name">SIGNALS</span></div>
+  <div class="fn-tab" onclick="setTab(this,'mkt')"><span class="fn-key">F2</span><span class="fn-name">MARKET</span></div>
+  <div class="fn-tab" onclick="setTab(this,'hist')"><span class="fn-key">F3</span><span class="fn-name">HISTORY</span></div>
+  <div class="fn-tab" onclick="setTab(this,'econ')"><span class="fn-key">F4</span><span class="fn-name">EVENTS</span></div>
+  <div class="fn-tab" onclick="setTab(this,'bot')"><span class="fn-key">F5</span><span class="fn-name">ALPHABOT</span></div>
+  <div class="fn-right">
+    <div class="sys-info"><span>REGIME:</span><span style="color:var(--red)">RISK-OFF</span></div>
+    <div class="sys-info"><span class="sys-live">● LIVE</span></div>
+    <div class="sys-info"><span class="sys-time" id="clock">13:18:22</span><span>GMT+1</span></div>
+  </div>
+</div>
+
+<!-- TICKER STRIP -->
+<div class="ticker">
+  <div class="tick-item"><span class="tick-sym">EUR/USD</span><span class="tick-price" id="t-eurusd">1.08423</span><span class="tick-chg neg" id="tc-eurusd">▼ −0.04%</span></div>
+  <div class="tick-item"><span class="tick-sym">GBP/USD</span><span class="tick-price" id="t-gbpusd">1.26341</span><span class="tick-chg pos" id="tc-gbpusd">▲ +0.07%</span></div>
+  <div class="tick-item"><span class="tick-sym">USD/JPY</span><span class="tick-price" id="t-usdjpy">153.421</span><span class="tick-chg neg" id="tc-usdjpy">▼ −0.08%</span></div>
+  <div class="tick-item"><span class="tick-sym">^VIX</span><span class="tick-price">22.41</span><span class="tick-chg neg">▲ +1.99%</span></div>
+  <div class="tick-item"><span class="tick-sym">DXY</span><span class="tick-price">104.82</span><span class="tick-chg pos">▲ +0.21%</span></div>
+  <div class="tick-item"><span class="tick-sym">US10Y</span><span class="tick-price">4.71%</span><span class="tick-chg pos">▲ +3bps</span></div>
+  <div class="tick-item"><span class="tick-sym">DE10Y</span><span class="tick-price">2.47%</span><span class="tick-chg neg">▼ −1bps</span></div>
+  <div class="tick-item" style="color:var(--text3);font-size:9px">NEXT SIGNAL: <span style="color:var(--amber)" id="countdown">00:47</span></div>
+</div>
+
+<!-- BODY -->
+<div class="body">
+
+  <!-- LEFT NAV -->
+  <div class="leftnav">
+    <div class="nav-icon active" title="Signals">⬡</div>
+    <div class="nav-icon" title="AlphaBot">⌘</div>
+    <div class="nav-icon" title="History">◫</div>
+    <div class="nav-sep"></div>
+    <div class="nav-icon" title="Events">◷</div>
+    <div class="nav-icon" title="Settings">⚙</div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center">
+
+    <!-- SIGNAL STRIP -->
+    <div class="signal-strip">
+
+      <!-- EUR/USD -->
+      <div class="sig-card selected" onclick="selectPair('eurusd',this)">
+        <div class="sig-top">
+          <div>
+            <div class="sig-pair">EUR/USD</div>
+            <div class="sig-price" id="sp-eurusd">1.08423 <span style="color:var(--red);font-family:var(--mono);font-size:9px">▼ −0.04%</span></div>
+          </div>
+          <div class="sig-badges">
+            <div class="dir HOLD">HOLD</div>
+            <div class="agr CONFLICT">CONFLICT</div>
+          </div>
+        </div>
+        <div class="sig-agents">
+          <div class="agt bear">MAC:BEAR</div>
+          <div class="agt bull">TECH:BUY</div>
+          <div class="agt neut">SENT:LOW</div>
+        </div>
+        <div class="sig-conf-row">
+          <div style="font-size:9px;color:var(--text3);font-family:var(--mono);white-space:nowrap">CONF</div>
+          <div class="conf-track"><div class="conf-fill" style="width:55%;background:var(--amber)"></div></div>
+          <div style="font-size:9px;color:var(--text2);font-family:var(--mono)">55%</div>
+        </div>
+        <div class="sig-meta">
+          <span class="meta-warn">⚠ CONFLICT · sz 0.00</span>
+          <span>+12h · 4m ago</span>
+        </div>
+      </div>
+
+      <!-- GBP/USD -->
+      <div class="sig-card" onclick="selectPair('gbpusd',this)">
+        <div class="sig-top">
+          <div>
+            <div class="sig-pair">GBP/USD</div>
+            <div class="sig-price">1.26341 <span style="color:var(--green);font-family:var(--mono);font-size:9px">▲ +0.07%</span></div>
+          </div>
+          <div class="sig-badges">
+            <div class="dir BUY">BUY</div>
+            <div class="agr FULL">FULL AGR.</div>
+          </div>
+        </div>
+        <div class="sig-agents">
+          <div class="agt bull">MAC:BULL</div>
+          <div class="agt bull">TECH:BUY</div>
+          <div class="agt bull">SENT:BULL</div>
+        </div>
+        <div class="sig-conf-row">
+          <div style="font-size:9px;color:var(--text3);font-family:var(--mono);white-space:nowrap">CONF</div>
+          <div class="conf-track"><div class="conf-fill" style="width:78%;background:var(--green)"></div></div>
+          <div style="font-size:9px;color:var(--text2);font-family:var(--mono)">78%</div>
+        </div>
+        <div class="sig-meta">
+          <span class="meta-active">● ACTIVE · sz 0.62</span>
+          <span>+12h · 7m ago</span>
+        </div>
+      </div>
+
+      <!-- USD/JPY -->
+      <div class="sig-card" onclick="selectPair('usdjpy',this)">
+        <div class="sig-top">
+          <div>
+            <div class="sig-pair">USD/JPY</div>
+            <div class="sig-price">153.421 <span style="color:var(--red);font-family:var(--mono);font-size:9px">▼ −0.08%</span></div>
+          </div>
+          <div class="sig-badges">
+            <div class="dir SELL">SELL</div>
+            <div class="agr PARTIAL">PARTIAL</div>
+          </div>
+        </div>
+        <div class="sig-agents">
+          <div class="agt bear">MAC:BEAR</div>
+          <div class="agt bear">TECH:SELL</div>
+          <div class="agt neut">SENT:LOW</div>
+        </div>
+        <div class="sig-conf-row">
+          <div style="font-size:9px;color:var(--text3);font-family:var(--mono);white-space:nowrap">CONF</div>
+          <div class="conf-track"><div class="conf-fill" style="width:64%;background:var(--yellow)"></div></div>
+          <div style="font-size:9px;color:var(--text2);font-family:var(--mono)">64%</div>
+        </div>
+        <div class="sig-meta">
+          <span class="meta-warn" style="color:var(--yellow)">⚠ NEAR EXPIRY · sz 0.41</span>
+          <span>+12h · 10h ago</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- WORKSPACE -->
+    <div class="workspace">
+
+      <!-- ALPHABOT -->
+      <div class="bot-panel">
+        <div class="bot-header">
+          <div>
+            <div class="bot-title">▸ ALPHABOT — EUR/USD</div>
+            <div class="bot-subtitle">Ask anything about this signal · type /help for commands</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:9px;color:var(--text3);font-family:var(--mono)">EXPLANATION LEVEL</span>
+            <div class="lang-toggle">
+              <button class="lang-btn active" id="btn-simple" onclick="setLang('simple')">SIMPLE</button>
+              <button class="lang-btn" id="btn-pro" onclick="setLang('pro')">PRO</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-msgs" id="chat">
+
+          <!-- Bot welcome -->
+          <div class="msg msg-bot">
+            <div class="msg-meta">ALPHABOT · 13:14:02</div>
+            <div class="msg-bubble">
+              <div id="welcome-simple">
+                Good afternoon. I've generated a new signal for <span style="color:var(--amber);font-family:var(--mono)">EUR/USD</span>. The short version: I'm recommending <strong style="color:var(--text)">no trade for now</strong>. Two of my three analysis engines are giving conflicting readings — one says the market is in a downtrend, the other sees a potential short-term bounce. When they disagree like this, I don't take action. I'll keep watching.
+              </div>
+              <div id="welcome-pro" style="display:none">
+                Signal generated for <span style="color:var(--amber);font-family:var(--mono)">EUR/USD</span>. Direction: <span style="color:var(--text);font-weight:600">HOLD</span>. Confidence: 55%. Agreement state: CONFLICT. Macro agent (24h horizon): BEARISH — risk-off regime, yield_z −0.606. Technical agent (12h horizon): BUY sub-threshold — P(BUY) 0.457, RSI 29.4, bb_position −0.91. Sentiment: LOW-NEWS, P(bullish) 0.42. Position size zeroed pending agent convergence.
+              </div>
+              <div class="cmd-suggestions">
+                <div class="cmd-chip" onclick="runCmd('/explain')">  /explain</div>
+                <div class="cmd-chip" onclick="runCmd('/why conflict')">  /why conflict</div>
+                <div class="cmd-chip" onclick="runCmd('/agents')">  /agents</div>
+                <div class="cmd-chip" onclick="runCmd('/events')">  /events</div>
+                <div class="cmd-chip" onclick="runCmd('/what-if nfp surprises high')">  /what-if nfp high</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Example: user asked /explain -->
+          <div class="msg msg-user">
+            <div class="msg-meta">YOU · 13:14:45</div>
+            <div class="msg-bubble">/explain</div>
+          </div>
+
+          <!-- Bot full signal -->
+          <div class="msg msg-bot">
+            <div class="msg-meta">ALPHABOT · 13:14:46</div>
+            <div class="msg-bubble">
+              <div id="explain-simple">Here's a full breakdown of the EUR/USD signal.</div>
+              <div id="explain-pro" style="display:none">Full signal decomposition — EUR/USD · 13:10 UTC</div>
+              <div class="chat-signal">
+                <div class="cs-header">
+                  <span class="cs-pair">EUR/USD</span>
+                  <span style="display:flex;gap:5px">
+                    <span class="dir HOLD">HOLD</span>
+                    <span class="agr CONFLICT">CONFLICT</span>
+                  </span>
+                </div>
+                <div class="cs-row">
+                  <div class="cs-cell">
+                    <div class="cs-label">Entry zone</div>
+                    <div class="cs-val" style="color:var(--blue)">1.0835–1.0850</div>
+                  </div>
+                  <div class="cs-cell">
+                    <div class="cs-label">Stop est.</div>
+                    <div class="cs-val" style="color:var(--red)">1.0801</div>
+                  </div>
+                  <div class="cs-cell">
+                    <div class="cs-label">Target est.</div>
+                    <div class="cs-val" style="color:var(--green)">1.0894</div>
+                  </div>
+                </div>
+                <div class="cs-reasoning">
+                  <div id="cs-r-simple">The main reason for HOLD is a disagreement between my engines. The big-picture view says the dollar is strong right now because US bonds pay significantly more than German bonds — money tends to flow toward higher-paying assets, which pushes EUR down. But the price chart is flashing a short-term bounce signal — EUR has been pushed down so far so fast that a snap-back is statistically likely in the next 12 hours. These two things can both be true. I'm waiting for them to align before committing.</div>
+                  <div id="cs-r-pro" style="display:none">CONFLICT: Macro horizon (24h) and technical horizon (12h) are misaligned. Macro: bearish regime confirmed by HMM state 0 (prob 0.71). Key driver — US–DE 10Y spread widened 12bps this week (currently +185bps), yield_z −0.606 below −0.5 threshold. Technical: oversold recovery setup — RSI_14 at 29.4 (below 30), bb_position −0.91 (near lower band), MACD histogram turned positive (+0.00014). P(BUY) 0.457 below 0.5 threshold — directional but sub-threshold. Sentiment neutral (P(bullish) 0.42). Position size zeroed per conflict rule.</div>
+                  <div class="cs-driver">
+                    <div id="kd-simple">⚡ Main driver: US bonds paying 1.85% more than German bonds — dollar favored</div>
+                    <div id="kd-pro" style="display:none">⚡ Key driver: mac_yield_z (US–DE 10Y spread +185bps, widened 12bps this week)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Example: user asked /why conflict -->
+          <div class="msg msg-user">
+            <div class="msg-meta">YOU · 13:15:30</div>
+            <div class="msg-bubble">/why conflict</div>
+          </div>
+
+          <div class="msg msg-bot">
+            <div class="msg-meta">ALPHABOT · 13:15:31</div>
+            <div class="msg-bubble">
+              <div class="chat-conflict">
+                <div class="conflict-head">⚡ TIMEFRAME CONFLICT — not a broken signal</div>
+                <div id="conflict-simple">
+                  Think of it this way: I have three analysts. One watches the big picture over 24 hours (bearish — market is risk-off). One watches the price chart over 12 hours (sees a short-term bounce coming). One reads the news (nothing happening right now).<br><br>
+                  The first two are disagreeing because they're looking at different timeframes. A bounce can happen inside a downtrend. That doesn't mean either is wrong — they're just answering different questions.<br><br>
+                  <strong style="color:var(--amber)">What history says:</strong> In <span class="conflict-stat">127 past cases</span> with this exact pattern, the price went up (bounce direction) <span class="conflict-stat">58%</span> of the time in the next 12 hours — but then came back down (trend direction) <span class="conflict-stat">71%</span> of the time by 24 hours.
+                </div>
+                <div id="conflict-pro" style="display:none">
+                  Macro agent (24h): HMM state=BEARISH, yield_z=−0.606. Technical agent (12h): oversold mean-reversion setup, P(BUY) 0.457. Horizons are structurally misaligned — short-term technical bounce is not incompatible with medium-term macro downtrend.<br><br>
+                  <strong style="color:var(--amber)">Historical resolution (n=127 identical conflict patterns):</strong><br>
+                  Within 12h (tech horizon): price moved in BUY direction <span class="conflict-stat">58%</span> of cases.<br>
+                  Within 24h (macro horizon): price moved in BEARISH direction <span class="conflict-stat">71%</span> of cases.<br>
+                  Implication: scalp-long bias on 12h with hard exit before 24h is the historical edge case.
+                </div>
+              </div>
+              <div class="cmd-suggestions">
+                <div class="cmd-chip" onclick="runCmd('/agents')">  /agents</div>
+                <div class="cmd-chip" onclick="runCmd('/what-if nfp surprises high')">  /what-if nfp high</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Typing indicator placeholder -->
+          <div class="msg msg-bot" id="typing-indicator" style="display:none">
+            <div class="msg-meta">ALPHABOT</div>
+            <div class="msg-bubble"><div class="typing"><span></span><span></span><span></span></div></div>
+          </div>
+        </div>
+
+        <!-- INPUT -->
+        <div class="bot-input-area">
+          <div class="shortcuts-row">
+            <div class="shortcut"><span class="shortcut-cmd">/explain</span><span class="shortcut-desc">full signal breakdown</span></div>
+            <div class="shortcut"><span class="shortcut-cmd">/agents</span><span class="shortcut-desc">what each engine sees</span></div>
+            <div class="shortcut"><span class="shortcut-cmd">/why</span><span class="shortcut-desc">explain the direction</span></div>
+            <div class="shortcut"><span class="shortcut-cmd">/what-if</span><span class="shortcut-desc">scenario analysis</span></div>
+            <div class="shortcut"><span class="shortcut-cmd">/history</span><span class="shortcut-desc">past signals for this pair</span></div>
+          </div>
+          <div class="input-row">
+            <span class="prompt">▸</span>
+            <input class="bot-input" id="bot-input" placeholder="Ask anything, or type a command..." onkeydown="handleKey(event)">
+            <button class="send-btn" onclick="sendMsg()">SEND</button>
+          </div>
+          <div class="input-meta">Agent: llama-3.3-70b via Groq · Signal #17 · EUR/USD</div>
+        </div>
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div class="right-panel">
+
+        <!-- Perf Stats -->
+        <div class="rp-section">
+          <div class="rp-header">PERFORMANCE</div>
+          <div class="stats-row">
+            <div class="stat-box">
+              <div class="stat-lbl">Win rate</div>
+              <div class="stat-val pos">61.2%</div>
+              <div class="stat-sub">±2.1% CI · n=847</div>
+              <div class="stat-tag">BACKTESTED</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-lbl">Profit factor</div>
+              <div class="stat-val neu">1.38</div>
+              <div class="stat-sub">Sharpe 1.12</div>
+              <div class="stat-tag">BACKTESTED</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-lbl">Total pips</div>
+              <div class="stat-val pos">+1,847</div>
+              <div class="stat-sub">avg +38 / −21</div>
+              <div class="stat-tag">BACKTESTED</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-lbl">Max DD</div>
+              <div class="stat-val neg">−4.2%</div>
+              <div class="stat-sub">avg 3.2d duration</div>
+              <div class="stat-tag">BACKTESTED</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Events -->
+        <div class="rp-section">
+          <div class="rp-header"><div class="rp-live-dot"></div>UPCOMING EVENTS</div>
+          <div class="events-list">
+            <div class="event-row" style="opacity:.5">
+              <div class="ev-dot low"></div>
+              <div class="ev-body">
+                <div class="ev-time">07:00 UTC · PASSED</div>
+                <div class="ev-name">EUR CPI Flash</div>
+                <div class="ev-pair">EUR/USD</div>
+              </div>
+            </div>
+            <div class="event-row upcoming high-imp">
+              <div class="ev-dot high"></div>
+              <div class="ev-body">
+                <div class="ev-time" style="color:var(--red)">14:30 UTC · in 1h 12m</div>
+                <div class="ev-name" style="color:var(--red);font-weight:600">🔴 USD NFP</div>
+                <div class="ev-pair">USD pairs — HIGH IMPACT</div>
+              </div>
+            </div>
+            <div class="event-row upcoming">
+              <div class="ev-dot med"></div>
+              <div class="ev-body">
+                <div class="ev-time" style="color:var(--yellow)">15:00 UTC · in 2h 12m</div>
+                <div class="ev-name">GBP BOE Statement</div>
+                <div class="ev-pair">GBP/USD</div>
+              </div>
+            </div>
+            <div class="event-row">
+              <div class="ev-dot low"></div>
+              <div class="ev-body">
+                <div class="ev-time">18:00 UTC</div>
+                <div class="ev-name">USD Michigan Sentiment</div>
+                <div class="ev-pair">USD pairs</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- News -->
+        <div class="rp-section" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+          <div class="rp-header"><div class="rp-live-dot"></div>LIVE NEWS</div>
+          <div class="news-list">
+            <div class="news-item">
+              <div class="news-head">Fed officials signal patience on rate cuts amid sticky inflation data</div>
+              <div class="news-meta"><span class="news-tag">USD</span><span>3m ago</span></div>
+            </div>
+            <div class="news-item">
+              <div class="news-head">ECB's Lagarde: eurozone growth risks remain tilted to the downside</div>
+              <div class="news-meta"><span class="news-tag">EUR</span><span>18m ago</span></div>
+            </div>
+            <div class="news-item">
+              <div class="news-head">BOJ maintains ultra-loose policy, JPY weakens past 153</div>
+              <div class="news-meta"><span class="news-tag">JPY</span><span>41m ago</span></div>
+            </div>
+            <div class="news-item">
+              <div class="news-head">US–Germany 10Y yield spread widens to 185bps — highest since March</div>
+              <div class="news-meta"><span class="news-tag">EUR/USD</span><span>1h ago</span></div>
+            </div>
+            <div class="news-item">
+              <div class="news-head">VIX climbs 2% ahead of NFP release — risk sentiment deteriorating</div>
+              <div class="news-meta"><span class="news-tag">RISK</span><span>1h ago</span></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="statusbar">
+  <div class="sb-item ok">● GROQ API</div>
+  <div class="sb-item ok">● DATA FEED</div>
+  <div class="sb-item">LATENCY: <span style="color:var(--green)">847ms</span></div>
+  <div class="sb-item">SIGNAL #17</div>
+  <div class="sb-item">FX ALPHALAB v1.0</div>
+  <div class="sb-item sb-right">LICENSED: ACADEMIC DEMO</div>
+</div>
+
+</div><!-- shell -->
+
+<script>
+// ── Clock ─────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}:${s}`;
+}
+setInterval(updateClock, 1000);
+
+// ── Countdown ─────────────────────────────
+let secs = 47;
+setInterval(() => {
+  secs = (secs <= 0) ? 300 : secs - 1;
+  const m = String(Math.floor(secs/60)).padStart(2,'0');
+  const s = String(secs%60).padStart(2,'0');
+  document.getElementById('countdown').textContent = `${m}:${s}`;
+}, 1000);
+
+// ── Price ticks ───────────────────────────
+const px = {
+  eurusd:{v:1.08423,b:1.08423,d:5},
+  gbpusd:{v:1.26341,b:1.26341,d:5},
+  usdjpy:{v:153.421,b:153.421,d:3}
+};
+function fmt(id,v) { return v.toFixed(px[id].d); }
+setInterval(() => {
+  for(const [id,p] of Object.entries(px)) {
+    p.v += (Math.random()-.492) * (id==='usdjpy'?.008:.00004);
+    const d = p.v - p.b;
+    const pct = (d/p.b*100).toFixed(2);
+    const sign = d>=0?'+':'';
+    const arrow = d>=0?'▲':'▼';
+    const cls = d>=0?'pos':'neg';
+    const el = document.getElementById('t-'+id);
+    const ce = document.getElementById('tc-'+id);
+    if(el) el.textContent = fmt(id,p.v);
+    if(ce) { ce.textContent = `${arrow} ${sign}${pct}%`; ce.className = `tick-chg ${cls}`; }
+  }
+}, 1600);
+
+// ── Language toggle ───────────────────────
+let lang = 'simple';
+function setLang(l) {
+  lang = l;
+  document.getElementById('btn-simple').classList.toggle('active', l==='simple');
+  document.getElementById('btn-pro').classList.toggle('active', l==='pro');
+  const show = l==='simple';
+  const pairs = [
+    ['welcome-simple','welcome-pro'],
+    ['explain-simple','explain-pro'],
+    ['cs-r-simple','cs-r-pro'],
+    ['kd-simple','kd-pro'],
+    ['conflict-simple','conflict-pro']
+  ];
+  pairs.forEach(([s,p]) => {
+    const se = document.getElementById(s);
+    const pe = document.getElementById(p);
+    if(se) se.style.display = show ? '' : 'none';
+    if(pe) pe.style.display = show ? 'none' : '';
+  });
+}
+
+// ── Pair selection ────────────────────────
+function selectPair(id, el) {
+  document.querySelectorAll('.sig-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  document.querySelector('.bot-title').textContent = `▸ ALPHABOT — ${id.replace('eurusd','EUR/USD').replace('gbpusd','GBP/USD').replace('usdjpy','USD/JPY')}`;
+}
+
+// ── Tab navigation ────────────────────────
+function setTab(el) {
+  document.querySelectorAll('.fn-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── Chat responses ────────────────────────
+const responses = {
+  '/agents': {
+    simple: `Here's what each of my three engines thinks about EUR/USD right now:\n\n<agents>`,
+    pro: `Agent outputs — EUR/USD · 13:10 UTC:\n\n<agents>`
+  },
+  '/events': {
+    simple: `⚠️ There's a major event coming up that could override everything I've told you. US Non-Farm Payrolls drops in about 1 hour 12 minutes. This is one of the biggest monthly data releases for the dollar — the market can move 50–100 pips in seconds. I wouldn't open any EUR/USD position before this releases.`,
+    pro: `Event risk alert: USD NFP at 14:30 UTC (in 01:12). Historical EUR/USD average move on NFP: ±62 pips within 15 minutes. All current signals should be treated as pre-event positioning only. Recommend: no new entries until post-NFP price action stabilizes (typically 15–30min post-release).`
+  },
+  '/what-if nfp surprises high': {
+    simple: `If the jobs report comes in much better than expected, that's good for the dollar — it means the US economy is strong and the Fed is less likely to cut rates soon. In that scenario, EUR/USD would likely drop, probably quickly. The HOLD signal would likely flip to a SELL signal after the release.`,
+    pro: `NFP upside surprise scenario: Strong payrolls (>250k vs 185k consensus) → USD bullish catalyst → confirms macro bearish thesis for EUR/USD. Expected response: break below 1.0820 support, targeting 1.0780. Technical agent would likely flip to SELL on next cycle. Confidence would increase significantly as macro and technical align. Recommend: wait for post-NFP signal refresh before entering.`
+  },
+  '/history': {
+    simple: `Looking at past signals for EUR/USD... Over the last 3 months I've generated 94 signals on this pair. 58 were correct (61.7% win rate). The most reliable signals were FULL AGREEMENT ones — those hit 74% accuracy. CONFLICT signals like today's have historically been correct about 52% of the time — barely better than a coin flip, which is exactly why I'm not recommending a trade.`,
+    pro: `EUR/USD signal history (90d): n=94, win rate 61.7% (±4.2% CI). Breakdown by agreement state: FULL (n=28) 74.3% · PARTIAL (n=41) 63.8% · CONFLICT (n=25) 52.0%. Avg confidence calibration: 55% confidence → 54.2% accuracy (well-calibrated). Avg holding time: 8.3h. Best performing regime: NEUTRAL macro → 68.1% win rate. Worst: CONFLICT in RISK-OFF → 48.9%.`
+  }
+};
+
+const agentDataSimple = `
+  <div class="chat-agents">
+    <div class="chat-agent">
+      <div class="ca-name">MACRO</div>
+      <div class="ca-verdict" style="color:var(--red)">BEARISH</div>
+      <div class="ca-driver">US bonds paying 1.85% more than German bonds — money flowing to USD</div>
+    </div>
+    <div class="chat-agent">
+      <div class="ca-name">TECHNICAL</div>
+      <div class="ca-verdict" style="color:var(--green)">BUY setup</div>
+      <div class="ca-driver">EUR has fallen a lot — price chart shows it's due for a bounce</div>
+    </div>
+    <div class="chat-agent">
+      <div class="ca-name">SENTIMENT</div>
+      <div class="ca-verdict" style="color:var(--text3)">NEUTRAL</div>
+      <div class="ca-driver">No significant news right now — no catalyst in either direction</div>
+    </div>
+  </div>`;
+
+const agentDataPro = `
+  <div class="chat-agents">
+    <div class="chat-agent">
+      <div class="ca-name">MACRO</div>
+      <div class="ca-verdict" style="color:var(--red)">BEARISH</div>
+      <div class="ca-driver">yield_z −0.606 · HMM state BEAR (0.71) · carry: US−DE +185bps</div>
+    </div>
+    <div class="chat-agent">
+      <div class="ca-name">TECH</div>
+      <div class="ca-verdict" style="color:var(--green)">BUY 0.457</div>
+      <div class="ca-driver">RSI 29.4 (oversold) · bb_position −0.91 · MACD hist +0.00014</div>
+    </div>
+    <div class="chat-agent">
+      <div class="ca-name">SENTIMENT</div>
+      <div class="ca-verdict" style="color:var(--text3)">LOW-NEWS</div>
+      <div class="ca-driver">P(bullish) 0.42 · flow_imbalance +0.08 · no headline catalyst</div>
+    </div>
+  </div>`;
+
+function appendMsg(who, html) {
+  const chat = document.getElementById('chat');
+  const typing = document.getElementById('typing-indicator');
+  const now = new Date();
+  const t = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  const div = document.createElement('div');
+  div.className = `msg msg-${who}`;
+  div.innerHTML = `<div class="msg-meta">${who==='user'?'YOU':'ALPHABOT'} · ${t}</div><div class="msg-bubble">${html}</div>`;
+  chat.insertBefore(div, typing);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function runCmd(cmd) {
+  document.getElementById('bot-input').value = cmd;
+  sendMsg();
+}
+
+function handleKey(e) {
+  if(e.key === 'Enter') sendMsg();
+}
+
+function sendMsg() {
+  const input = document.getElementById('bot-input');
+  const val = input.value.trim();
+  if(!val) return;
+  input.value = '';
+  appendMsg('user', val);
+
+  const typing = document.getElementById('typing-indicator');
+  typing.style.display = 'flex';
+  document.getElementById('chat').scrollTop = 99999;
+
+  setTimeout(() => {
+    typing.style.display = 'none';
+    const key = Object.keys(responses).find(k => val.toLowerCase().includes(k.slice(1)));
+    if(key) {
+      const r = responses[key][lang];
+      let html = r;
+      if(html.includes('<agents>')) {
+        html = html.replace('<agents>', lang==='simple' ? agentDataSimple : agentDataPro);
+      } else {
+        html = html.replace(/\n/g, '<br>');
+      }
+      appendMsg('bot', html);
+    } else {
+      const fallback = lang === 'simple'
+        ? `I understand you're asking about "<em>${val}</em>". Try one of the commands above, or ask me something like "why is the signal HOLD?" or "what happens if US jobs data is strong?"`
+        : `Query: "${val}" — unrecognized command. Available: /explain /agents /why /what-if [scenario] /history /events /help`;
+      appendMsg('bot', fallback);
+    }
+  }, 900 + Math.random()*400);
+}
+</script>
+</body>
+</html>
