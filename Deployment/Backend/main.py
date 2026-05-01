@@ -8,7 +8,7 @@ Uses fx_alphalab package directly via Python imports.
 import os
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -26,9 +26,12 @@ if env_path.exists():
 from app.api import health, signals, websocket, prices, calendar, news, alphabot
 from app.config import settings
 from app.services import agent_service, signal_store, news_service
+from app.services.change_detector import change_detector
+from app.services.news_monitor import news_monitor
 
 # Global state for next cycle tracking
 next_cycle_ts = 0.0
+next_technical_ts = 0.0
 
 
 @asynccontextmanager
@@ -59,17 +62,27 @@ async def lifespan(app: FastAPI):
     # Start scheduler
     scheduler = AsyncIOScheduler()
     
-    # Agent cycle job (every 60 minutes)
+    # Full agent cycle (every 60 minutes) - Macro + Technical + Sentiment + LLM
     scheduler.add_job(
-        run_agent_cycle,
+        run_full_cycle,
         trigger="interval",
         minutes=settings.RUN_EVERY_MINS,
-        id="agent_cycle",
+        id="full_cycle",
         max_instances=1,
         next_run_time=datetime.now() if settings.RUN_ON_STARTUP else None,
     )
     
-    # Price broadcast job (every 30 seconds)
+    # Technical-only cycle (every 15 minutes) - just Technical + LLM if changed
+    scheduler.add_job(
+        run_technical_cycle,
+        trigger="interval",
+        minutes=15,
+        id="technical_cycle",
+        max_instances=1,
+        next_run_time=datetime.now() + timedelta(minutes=5) if settings.RUN_ON_STARTUP else None,
+    )
+    
+    # Price + context broadcast (every 30 seconds)
     scheduler.add_job(
         broadcast_price_update,
         trigger="interval",
@@ -78,7 +91,7 @@ async def lifespan(app: FastAPI):
         max_instances=1,
     )
     
-    # Stats computation job (every 6 hours)
+    # Stats computation (every 6 hours)
     scheduler.add_job(
         compute_stats_cache,
         trigger="interval",
@@ -89,16 +102,25 @@ async def lifespan(app: FastAPI):
     
     scheduler.start()
     next_cycle_ts = time.time() + (settings.RUN_EVERY_MINS * 60)
+    next_technical_ts = time.time() + (15 * 60)
+    
+    # Start news monitor
+    import asyncio
+    news_monitor.set_spike_callback(on_sentiment_spike)
+    asyncio.create_task(news_monitor.run())
     
     logger.info(f"Scheduler started:")
-    logger.info(f"  - Agent cycle: every {settings.RUN_EVERY_MINS} min")
-    logger.info(f"  - Price updates: every 30 seconds")
+    logger.info(f"  - Full cycle (Macro+Tech+Sent+LLM): every {settings.RUN_EVERY_MINS} min")
+    logger.info(f"  - Technical cycle (Tech+LLM if changed): every 15 min")
+    logger.info(f"  - Price + context updates: every 30 seconds")
+    logger.info(f"  - News monitoring: every 2 minutes")
     logger.info(f"  - Stats computation: every 6 hours")
     logger.success(f"✓ Backend ready on http://{settings.HOST}:{settings.PORT}")
     
     yield
     
     # Shutdown
+    news_monitor.stop()
     scheduler.shutdown()
     logger.info("Backend stopped")
 
@@ -127,17 +149,84 @@ app.include_router(alphabot.router, prefix="/api", tags=["alphabot"])
 app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
 
 
-async def run_agent_cycle():
-    """Scheduled agent execution"""
+async def run_full_cycle():
+    """Full cycle: Macro + Technical + Sentiment + LLM (every 60 min)"""
     global next_cycle_ts
     
     try:
+        logger.info("═══ FULL CYCLE START ═══")
         signals_list = await agent_service.run_cycle()
         signal_store.update(signals_list)
         await websocket.broadcast_update()
         next_cycle_ts = time.time() + (settings.RUN_EVERY_MINS * 60)
+        logger.success("═══ FULL CYCLE COMPLETE ═══")
     except Exception as e:
-        logger.error(f"Agent cycle failed: {e}")
+        logger.error(f"Full cycle failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+async def run_technical_cycle():
+    """Technical-only cycle: Run Technical Agent, trigger LLM if changed (every 15 min)"""
+    global next_technical_ts
+    
+    try:
+        logger.info("─── Technical cycle start ───")
+        
+        # Get pairs to analyze
+        pairs = settings.PAIRS
+        
+        # Run Technical Agent only
+        tech_outputs = await agent_service.run_technical_only(pairs)
+        
+        # Check each pair for significant changes
+        changed_pairs = []
+        for pair, tech_output in tech_outputs.items():
+            if change_detector.technical_changed(pair, tech_output):
+                changed_pairs.append(pair)
+        
+        # If any pair changed significantly, run full cycle for those pairs
+        if changed_pairs:
+            logger.info(f"Technical changes detected for {changed_pairs}, triggering LLM update")
+            signals_list = await agent_service.run_cycle(pairs=changed_pairs)
+            signal_store.update(signals_list)
+            await websocket.broadcast_update()
+        else:
+            logger.info("No significant technical changes, skipping LLM")
+        
+        next_technical_ts = time.time() + (15 * 60)
+        logger.success("─── Technical cycle complete ───")
+        
+    except Exception as e:
+        logger.error(f"Technical cycle failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+async def on_sentiment_spike(pair: str, spike_data: dict):
+    """Handle sentiment spike detection - rerun Sentiment + LLM for this pair"""
+    try:
+        logger.warning(f"[{pair}] Sentiment spike detected: {spike_data}")
+        
+        # Run Sentiment Agent for this pair
+        sentiment_output = await agent_service.run_sentiment_only(pair)
+        
+        # Check if sentiment actually changed
+        if change_detector.sentiment_changed(pair, sentiment_output):
+            logger.info(f"[{pair}] Sentiment changed significantly, triggering LLM update")
+            
+            # Run full cycle for this pair only
+            signals_list = await agent_service.run_cycle(pairs=[pair])
+            signal_store.update(signals_list)
+            await websocket.broadcast_update()
+            
+            # Broadcast news alert to frontend
+            await websocket.broadcast_news_alert(pair, spike_data)
+        else:
+            logger.info(f"[{pair}] Sentiment spike detected but no significant change in output")
+            
+    except Exception as e:
+        logger.error(f"Sentiment spike handler failed for {pair}: {e}")
         import traceback
         traceback.print_exc()
 
@@ -146,8 +235,11 @@ async def broadcast_price_update():
     """Scheduled price broadcast (every 30 seconds)"""
     try:
         await websocket.broadcast_prices()
+        logger.info("✓ Price + context update broadcast")
     except Exception as e:
-        logger.debug(f"Price broadcast failed: {e}")
+        logger.error(f"Price broadcast failed: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 async def compute_stats_cache():

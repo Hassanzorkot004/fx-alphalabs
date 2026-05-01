@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { Signal, Stats, CalendarEvent, NewsArticle, Price, WSMessage } from '../Types';
+import type { Signal, Stats, CalendarEvent, NewsArticle, Price, WSMessage, LiveContext } from '../Types';
 import { WS_URL } from '../config/constants';
 
 interface SignalsState {
@@ -9,6 +9,7 @@ interface SignalsState {
   calendar: CalendarEvent[];
   news: NewsArticle[];
   prices: Record<string, Price>;
+  liveContexts: Record<string, LiveContext>;
   connected: boolean;
   lastUpdate: string | null;
   nextCycle: number | null;
@@ -21,6 +22,7 @@ const INITIAL_STATE: SignalsState = {
   calendar: [],
   news: [],
   prices: {},
+  liveContexts: {},
   connected: false,
   lastUpdate: null,
   nextCycle: null,
@@ -53,7 +55,8 @@ export function useSignals() {
               signalCount: msg.signals?.length,
               pairs: msg.signals?.map(s => s.pair),
               hasStats: !!msg.stats,
-              statsKeys: msg.stats ? Object.keys(msg.stats) : []
+              hasContexts: !!msg.live_contexts,
+              nextCycle: msg.next_cycle,
             });
             
             setState(prev => ({
@@ -64,14 +67,36 @@ export function useSignals() {
               calendar: msg.calendar || prev.calendar,
               news: msg.news || prev.news,
               prices: msg.prices || prev.prices,
+              liveContexts: msg.live_contexts || prev.liveContexts,
               lastUpdate: new Date().toISOString(),
-              nextCycle: msg.next_cycle || prev.nextCycle,
+              nextCycle: msg.next_cycle ?? prev.nextCycle,
             }));
+          } else if (msg.type === 'context_update') {
+            // Lightweight update: just prices and live contexts
+            console.log('[WS] Received context_update:', {
+              priceCount: Object.keys(msg.prices || {}).length,
+              contextCount: Object.keys(msg.live_contexts || {}).length,
+            });
+            setState(prev => ({
+              ...prev,
+              prices: { ...prev.prices, ...(msg.prices || {}) },
+              liveContexts: { ...prev.liveContexts, ...(msg.live_contexts || {}) },
+              lastUpdate: msg.timestamp || new Date().toISOString(),
+            }));
+          } else if (msg.type === 'news_alert') {
+            // News spike detected
+            console.log('[WS] News alert:', msg);
+            // Could show a toast notification here
           } else if (msg.type === 'price_update') {
+            // Legacy support
             setState(prev => ({
               ...prev,
               prices: { ...prev.prices, ...(msg.prices || {}) },
             }));
+          } else if (msg.type === 'ping') {
+            // Ignore ping messages
+          } else {
+            console.log('[WS] Unknown message type:', msg.type);
           }
         } catch (err) {
           console.error('[WS] Parse error:', err);

@@ -2,11 +2,20 @@ import type { NewsArticle } from '../Types';
 
 interface NewsFeedPanelProps {
   articles: NewsArticle[];
+  selectedPair?: string;
   onArticleClick?: (article: NewsArticle) => void;
 }
 
-export default function NewsFeedPanel({ articles, onArticleClick }: NewsFeedPanelProps) {
-  const recentArticles = articles.slice(0, 10);
+export default function NewsFeedPanel({ articles, selectedPair, onArticleClick }: NewsFeedPanelProps) {
+  // Filter to articles relevant to selected pair
+  const filteredArticles = selectedPair
+    ? articles.filter(article => {
+        const pairCurrencies = selectedPair.replace('=X', '').match(/.{3}/g) || [];
+        return article.tags.some(tag => pairCurrencies.includes(tag));
+      })
+    : articles;
+
+  const recentArticles = filteredArticles.slice(0, 10);
 
   return (
     <div style={{
@@ -76,15 +85,13 @@ function ArticleItem({ article, onClick }: { article: NewsArticle; onClick?: (ar
       <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.4 }}>
         {article.title}
       </div>
-      <div className="mono" style={{ 
+      <div className="mono article-hint" style={{ 
         fontSize: 9, 
         color: 'var(--amber)', 
         marginTop: 6,
         opacity: 0,
         transition: 'opacity 0.2s ease',
-      }}
-      className="article-hint"
-      >
+      }}>
         💬 Ask about this
       </div>
     </div>

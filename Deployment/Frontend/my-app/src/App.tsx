@@ -7,9 +7,10 @@ import SignalCard from './components/SignalCard';
 import AlphaBotPanel from './components/AlphaBotPanel';
 import EventCalendarPanel from './components/EventCalendarPanel';
 import NewsFeedPanel from './components/NewsFeedPanel';
+import NextUpdateCountdown from './components/NextUpdateCountdown';
 
 export default function App() {
-  const { signals, history, stats, calendar, news, prices, connected, lastUpdate } = useSignals();
+  const { signals, history, calendar, news, prices, liveContexts, connected, lastUpdate, nextCycle } = useSignals();
   const [selectedPair, setSelectedPair] = useState<string | null>(null);
   const alphaBotSendRef = useRef<((msg: string) => Promise<void>) | null>(null);
 
@@ -68,8 +69,11 @@ export default function App() {
               </span>
             </div>
           </div>
-          <div className="mono" style={{ fontSize: 11, color: 'var(--text3)' }}>
-            {lastUpdate ? `Updated ${new Date(lastUpdate).toLocaleTimeString()}` : 'Waiting for data...'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <NextUpdateCountdown nextCycleSeconds={nextCycle} />
+            <div className="mono" style={{ fontSize: 11, color: 'var(--text3)' }}>
+              {lastUpdate ? `Updated ${new Date(lastUpdate).toLocaleTimeString()}` : 'Waiting for data...'}
+            </div>
           </div>
         </div>
 
@@ -93,11 +97,16 @@ export default function App() {
               {signals.length === 0 ? (
                 [0, 1, 2].map(i => <SkeletonCard key={i} />)
               ) : (
-                signals.map(signal => (
+                // Sort signals in fixed order: EURUSD, GBPUSD, USDJPY
+                [...signals].sort((a, b) => {
+                  const order = ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X'];
+                  return order.indexOf(a.pair) - order.indexOf(b.pair);
+                }).map(signal => (
                   <SignalCard
                     key={signal.pair}
                     signal={signal}
                     price={prices[signal.pair]}
+                    liveContext={liveContexts[signal.pair]}
                     isSelected={signal.pair === activePair}
                     onClick={() => setSelectedPair(signal.pair)}
                   />
@@ -124,6 +133,7 @@ export default function App() {
               />
               <NewsFeedPanel 
                 articles={news}
+                selectedPair={activePair}
                 onArticleClick={handleNewsClick}
               />
             </div>
