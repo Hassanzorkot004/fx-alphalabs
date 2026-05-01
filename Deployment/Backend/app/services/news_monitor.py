@@ -3,7 +3,6 @@
 import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, Callable
-import numpy as np
 from loguru import logger
 
 from app.services.news_service import news_service
@@ -68,7 +67,7 @@ class NewsMonitor:
             await self._check_pair_spike(pair, currency_articles)
     
     async def _check_pair_spike(self, pair: str, currency_articles: Dict):
-        """Check if a specific pair has a sentiment spike"""
+        """Check if a specific pair has a sentiment spike using real Sentiment Agent"""
         # Get currencies for this pair
         if pair == "EURUSD":
             currencies = ["EUR", "USD"]
@@ -87,24 +86,30 @@ class NewsMonitor:
         if len(relevant_articles) < 2:
             return
         
-        # Simple sentiment scoring (positive tags = bullish, negative = bearish)
-        # This is a placeholder - in production you'd use the actual sentiment model
-        scores = []
-        for article in relevant_articles:
-            title_lower = article.get("title", "").lower()
-            score = 0.0
+        # Use REAL Sentiment Agent model instead of keyword matching
+        try:
+            from app.services.agent_service import agent_service
             
-            # Bullish keywords
-            if any(word in title_lower for word in ["rise", "gain", "up", "surge", "rally", "boost"]):
-                score += 0.3
+            # Fetch news features (same as full cycle)
+            news_result = agent_service.runner.news_feed.fetch(pair)
+            nws_feats = news_result["nws_features"]
             
-            # Bearish keywords
-            if any(word in title_lower for word in ["fall", "drop", "down", "plunge", "decline", "slump"]):
-                score -= 0.3
+            # Run Sentiment Agent model
+            sentiment_output = await asyncio.to_thread(
+                agent_service.runner.sent_agent.predict_live,
+                nws_feats
+            )
             
-            scores.append(score)
+            # Extract sentiment score from model output
+            # p_buy - p_sell gives us a score from -1 (bearish) to +1 (bullish)
+            p_buy = sentiment_output.get("p_buy", 0.33)
+            p_sell = sentiment_output.get("p_sell", 0.33)
+            current_avg = float(p_buy - p_sell)
+            
+        except Exception as e:
+            logger.error(f"[{pair}] Failed to run Sentiment Agent for spike detection: {e}")
+            return
         
-        current_avg = float(np.mean(scores)) if scores else 0.0
         baseline = self.baseline_sentiment.get(pair, 0.0)
         delta = abs(current_avg - baseline)
         
