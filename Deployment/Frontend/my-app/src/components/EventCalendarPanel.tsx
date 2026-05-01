@@ -90,15 +90,13 @@ function EventItem({ event, onClick }: { event: CalendarEvent; onClick?: (event:
           {event.previous && <span>Previous: {event.previous}</span>}
         </div>
       )}
-      <div className="mono" style={{ 
+      <div className="mono event-hint" style={{ 
         fontSize: 9, 
         color: 'var(--amber)', 
         marginTop: 6,
         opacity: 0,
         transition: 'opacity 0.2s ease',
-      }}
-      className="event-hint"
-      >
+      }}>
         💬 Ask about this
       </div>
     </div>

@@ -50,6 +50,39 @@ export interface Signal {
   pct_elapsed?:       number;
 }
 
+export interface LiveContext {
+  pair: string;
+  current_price: number;
+  signal_age_minutes: number;
+  signal_age_display: string;
+  time_remaining: string;
+  tech_indicators: {
+    rsi_14: number | null;
+    p_buy: number;
+    p_sell: number;
+    p_hold: number;
+  };
+  price_context: {
+    current_price: number;
+    vs_entry: string | null;
+    vs_stop: string | null;
+    vs_target: string | null;
+    entry_status: string;
+  };
+  validity: {
+    status: 'VALID' | 'STOPPED_OUT' | 'TARGET_HIT' | 'EXPIRED' | 'WARNING' | 'NEAR_EXPIRY';
+    reason: string;
+    action_recommended: string;
+  };
+  freshness: {
+    signal_generated_at: string;
+    price_checked_at: string;
+    macro_computed_at: string;
+    technical_computed_at: string;
+    sentiment_computed_at: string;
+  };
+}
+
 export interface Price {
   pair:        string;
   price:       number;
@@ -98,8 +131,10 @@ export interface WSMessage {
   calendar?:         CalendarEvent[];
   news?:             NewsArticle[];
   prices?:           Record<string, Price>;
+  live_contexts?:    Record<string, LiveContext>;
   next_cycle?:       number;
   seconds_remaining?: number;
+  timestamp?:        string;
 }
 
 export interface ChatMessage {
