@@ -11,7 +11,11 @@ export interface Signal {
   agent_agreement: string;
   source:          string;
   timestamp:       string;
-
+macro_score?: number;
+technical_score?: number;
+sentiment_score?: number;
+dominant_agent?: string;
+consensus_strength?: string;
   // Price & trade levels
   price_at_signal?: number;
   atr?:             number;
@@ -144,4 +148,38 @@ export interface ChatMessage {
 
 export interface AlphaBotMode {
   mode: 'simple' | 'pro';
+}
+export interface Portfolio {
+  balance: number;
+  initial_balance: number;
+  realized_pnl: number;
+}
+
+export interface VirtualTrade {
+  id: number;
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  entry_price: number;
+  exit_price?: number | null;
+  quantity: number;
+  status: 'OPEN' | 'CLOSED';
+  pnl: number;
+  stop_loss?: number | null;
+take_profit?: number | null;
+  opened_at: string;
+  closed_at?: string | null;
+}
+
+export interface OpenTradePayload {
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  entry_price: number;
+  quantity: number;
+  stop_loss?: number | null;
+  take_profit?: number | null;
+  source_signal_id?: string | null;
+}
+
+export interface CloseTradePayload {
+  exit_price: number;
 }

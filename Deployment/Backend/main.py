@@ -16,7 +16,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
-
+from app.trading import models as trading_models
+from app.trading.routes import router as trading_router
 # Load .env file before importing anything else
 env_path = Path(__file__).parent / ".env"
 if env_path.exists():
@@ -149,7 +150,7 @@ app.include_router(news.router, prefix="/api", tags=["news"])
 app.include_router(alphabot.router, prefix="/api", tags=["alphabot"])
 app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
 app.include_router(auth_router)
-
+app.include_router(trading_router, prefix="/api/trading", tags=["trading"])
 async def run_full_cycle():
     """Full cycle: Macro + Technical + Sentiment + LLM (every 60 min)"""
     global next_cycle_ts

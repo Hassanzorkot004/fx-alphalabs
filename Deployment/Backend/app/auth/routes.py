@@ -125,11 +125,12 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
             )
 
         access_token = create_access_token(
-            data={
-                "sub": db_user.email,
-                "username": db_user.username,
-            }
-        )
+    data={
+        "sub": db_user.email,
+        "username": db_user.username,
+        "user_id": db_user.id,
+    }
+)
 
         return {
             "access_token": access_token,
@@ -145,5 +146,12 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
 
 
 @router.get("/me")
+def get_me(current_user=Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "username": current_user.username,
+        "is_verified": current_user.is_verified,
+    }
 def get_me(current_user=Depends(get_current_user)):
     return current_user

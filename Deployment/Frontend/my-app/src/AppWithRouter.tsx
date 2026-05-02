@@ -4,8 +4,8 @@ import App from './App';
 import HistoryPage from './pages/HistoryPage';
 import SettingsPage from './pages/SettingsPage';
 import AuthPage from './pages/AuthPage';
-
-type Page = 'dashboard' | 'history' | 'settings';
+import TradesPage from './pages/TradesPage';
+type Page = 'dashboard' | 'history' | 'trades' | 'settings';
 
 type User = {
   email: string;
@@ -52,6 +52,11 @@ export default function AppWithRouter() {
             onClick={() => setCurrentPage('history')}
           />
           <NavButton
+  label="Trades"
+  isActive={currentPage === 'trades'}
+  onClick={() => setCurrentPage('trades')}
+/>
+          <NavButton
             label="Settings"
             isActive={currentPage === 'settings'}
             onClick={() => setCurrentPage('settings')}
@@ -91,6 +96,7 @@ export default function AppWithRouter() {
 
         {currentPage === 'dashboard' && <App />}
         {currentPage === 'history' && <HistoryPage />}
+        {currentPage === 'trades' && <TradesPage />}
         {currentPage === 'settings' && <SettingsPage />}
       </div>
     </ErrorBoundary>

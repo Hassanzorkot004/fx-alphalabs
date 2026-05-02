@@ -38,7 +38,9 @@ export function useSignals() {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     try {
-      const ws = new WebSocket(WS_URL);
+      const token = localStorage.getItem('fx_token');
+const wsUrl = token ? `${WS_URL}?token=${encodeURIComponent(token)}` : WS_URL;
+const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
         console.log('[WS] Connected');

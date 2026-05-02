@@ -4,6 +4,10 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt, JWTError
 from passlib.context import CryptContext
+from sqlalchemy.orm import Session
+
+from app.auth.database import get_db
+from app.auth.models import User
 
 SECRET_KEY = "fx_alphalab_super_secret_key"
 ALGORITHM = "HS256"
@@ -45,7 +49,8 @@ def create_access_token(data: dict):
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
 ):
     token = credentials.credentials
 
@@ -59,18 +64,14 @@ def get_current_user(
         email = payload.get("sub")
 
         if email is None:
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid token"
-            )
+            raise HTTPException(status_code=401, detail="Invalid token")
 
-        return {
-            "email": email,
-            "username": payload.get("username")
-        }
+        db_user = db.query(User).filter(User.email == email).first()
+
+        if not db_user:
+            raise HTTPException(status_code=401, detail="User not found")
+
+        return db_user
 
     except JWTError:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token"
-        )
+        raise HTTPException(status_code=401, detail="Invalid token")

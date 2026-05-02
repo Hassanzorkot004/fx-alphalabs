@@ -1,398 +1,245 @@
-import { useState, useEffect } from 'react';
+import { useSignals } from '../hooks/useSignals';
 import type { Signal } from '../Types';
-import { API_BASE_URL } from '../config/constants';
 
 export default function HistoryPage() {
-  const [history, setHistory] = useState<Signal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Filters
-  const [selectedPair, setSelectedPair] = useState<string>('all');
-  const [selectedDirection, setSelectedDirection] = useState<string>('all');
-  const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const { history, signals, connected, lastUpdate } = useSignals();
 
-  useEffect(() => {
-    fetchHistory();
-  }, []);
+  const allRows = [...signals, ...history];
 
-  const fetchHistory = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/history`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      setHistory(data.history || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load history');
-    } finally {
-      setLoading(false);
-    }
-  };
+  function exportCsv() {
+    if (allRows.length === 0) return;
 
-  const filteredHistory = history.filter(signal => {
-    if (selectedPair !== 'all' && signal.pair.replace('=X', '') !== selectedPair) return false;
-    if (selectedDirection !== 'all' && signal.direction !== selectedDirection) return false;
-    return true;
-  });
+    const headers = [
+      'pair',
+      'direction',
+      'confidence',
+      'agent_agreement',
+      'macro_regime',
+      'tech_signal',
+      'sent_signal',
+      'timestamp',
+    ];
 
-  const exportToCSV = () => {
-    const headers = ['Timestamp', 'Pair', 'Direction', 'Confidence', 'Agreement', 'Regime', 'Price', 'Reasoning'];
-    const rows = filteredHistory.map(s => [
-      s.timestamp,
-      s.pair.replace('=X', ''),
-      s.direction,
-      (s.confidence * 100).toFixed(0) + '%',
-      s.agent_agreement,
-      s.macro_regime,
-      s.price_at_signal || '',
-      `"${s.reasoning.replace(/"/g, '""')}"`,
+    const rows = allRows.map((signal) => [
+      signal.pair.replace('=X', ''),
+      signal.direction,
+      Math.round(signal.confidence * 100) + '%',
+      signal.agent_agreement,
+      signal.macro_regime,
+      signal.tech_signal,
+      signal.sent_signal,
+      signal.timestamp,
     ]);
 
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row) =>
+        row
+          .map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`)
+          .join(',')
+      ),
+    ].join('\n');
+
+    const blob = new Blob([csvContent], {
+      type: 'text/csv;charset=utf-8;',
+    });
+
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `fx-alphalab-history-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = `fx-alphalab-history-${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
     URL.revokeObjectURL(url);
-  };
-
-  if (loading) {
-    return (
-      <div style={{ 
-        minHeight: '100vh', 
-        background: 'var(--bg)', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        color: 'var(--text3)',
-      }}>
-        Loading history...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ 
-        minHeight: '100vh', 
-        background: 'var(--bg)', 
-        padding: 40,
-        color: 'var(--red)',
-      }}>
-        Error: {error}
-      </div>
-    );
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)' }}>
-      {/* Header */}
-      <div style={{
-        background: 'var(--bg1)',
-        borderBottom: '1px solid var(--border)',
-        padding: '16px 24px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-      }}>
+    <main style={{ padding: 24 }}>
+      <header
+        style={{
+          marginBottom: 24,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 20,
+        }}
+      >
         <div>
-          <h1 className="mono" style={{ fontSize: 20, fontWeight: 600, color: 'var(--amber)', marginBottom: 4 }}>
+          <h1
+            className="mono"
+            style={{
+              color: 'var(--amber)',
+              fontSize: 22,
+              marginBottom: 6,
+            }}
+          >
             Signal History
           </h1>
-          <div style={{ fontSize: 13, color: 'var(--text3)' }}>
-            {filteredHistory.length} signals {selectedPair !== 'all' || selectedDirection !== 'all' ? '(filtered)' : ''}
+
+          <p style={{ color: 'var(--text3)', fontSize: 13 }}>
+            Historical FX AlphaLab signals loaded from the live WebSocket stream.
+          </p>
+
+          <div
+            style={{
+              marginTop: 8,
+              fontSize: 12,
+              color: connected ? 'var(--green)' : 'var(--red)',
+            }}
+          >
+            {connected ? 'Live data connected' : 'Live data disconnected'}
+
+            {lastUpdate && (
+              <span style={{ color: 'var(--text3)', marginLeft: 8 }}>
+                Updated {new Date(lastUpdate).toLocaleTimeString()}
+              </span>
+            )}
           </div>
         </div>
+
         <button
-          onClick={exportToCSV}
-          disabled={filteredHistory.length === 0}
+          onClick={exportCsv}
+          disabled={allRows.length === 0}
           style={{
-            background: filteredHistory.length > 0 ? 'var(--amber)' : 'var(--bg3)',
-            color: filteredHistory.length > 0 ? 'var(--bg)' : 'var(--text3)',
+            background: allRows.length === 0 ? 'var(--bg3)' : 'var(--amber)',
+            color: allRows.length === 0 ? 'var(--text3)' : '#000',
             border: 'none',
-            padding: '10px 20px',
-            borderRadius: 6,
+            borderRadius: 8,
+            padding: '10px 14px',
             fontSize: 13,
-            fontWeight: 600,
-            cursor: filteredHistory.length > 0 ? 'pointer' : 'not-allowed',
-            transition: 'all 0.2s ease',
+            fontWeight: 700,
+            cursor: allRows.length === 0 ? 'not-allowed' : 'pointer',
           }}
         >
           Export CSV
         </button>
-      </div>
+      </header>
 
-      {/* Filters */}
-      <div style={{
-        background: 'var(--bg2)',
-        borderBottom: '1px solid var(--border)',
-        padding: '12px 24px',
-        display: 'flex',
-        gap: 16,
-        alignItems: 'center',
-      }}>
-        <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>FILTERS:</span>
-        
-        <select
-          value={selectedPair}
-          onChange={(e) => setSelectedPair(e.target.value)}
+      {allRows.length === 0 ? (
+        <div
           style={{
-            background: 'var(--bg3)',
+            background: 'var(--bg1)',
             border: '1px solid var(--border)',
-            color: 'var(--text)',
-            padding: '6px 12px',
-            borderRadius: 4,
-            fontSize: 12,
-            cursor: 'pointer',
+            borderRadius: 10,
+            padding: 20,
+            color: 'var(--text3)',
           }}
         >
-          <option value="all">All Pairs</option>
-          <option value="EURUSD">EURUSD</option>
-          <option value="GBPUSD">GBPUSD</option>
-          <option value="USDJPY">USDJPY</option>
-        </select>
-
-        <select
-          value={selectedDirection}
-          onChange={(e) => setSelectedDirection(e.target.value)}
+          Waiting for history data...
+        </div>
+      ) : (
+        <section
           style={{
-            background: 'var(--bg3)',
+            background: 'var(--bg1)',
             border: '1px solid var(--border)',
-            color: 'var(--text)',
-            padding: '6px 12px',
-            borderRadius: 4,
-            fontSize: 12,
-            cursor: 'pointer',
+            borderRadius: 10,
+            overflow: 'hidden',
           }}
         >
-          <option value="all">All Directions</option>
-          <option value="BUY">BUY</option>
-          <option value="SELL">SELL</option>
-          <option value="HOLD">HOLD</option>
-        </select>
-
-        {(selectedPair !== 'all' || selectedDirection !== 'all') && (
-          <button
-            onClick={() => {
-              setSelectedPair('all');
-              setSelectedDirection('all');
-            }}
+          <table
             style={{
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              color: 'var(--text3)',
-              padding: '6px 12px',
-              borderRadius: 4,
-              fontSize: 11,
-              cursor: 'pointer',
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontSize: 13,
             }}
           >
-            Clear Filters
-          </button>
-        )}
-      </div>
+            <thead>
+              <tr style={{ background: 'var(--bg2)' }}>
+                <Th>Pair</Th>
+                <Th>Direction</Th>
+                <Th>Confidence</Th>
+                <Th>Agreement</Th>
+                <Th>Macro</Th>
+                <Th>Tech</Th>
+                <Th>Sentiment</Th>
+                <Th>Timestamp</Th>
+              </tr>
+            </thead>
 
-      {/* Table */}
-      <div style={{ padding: 24 }}>
-        {filteredHistory.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: 60,
-            color: 'var(--text3)',
-            fontSize: 14,
-          }}>
-            No signals found
-          </div>
-        ) : (
-          <div style={{
-            background: 'var(--bg2)',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            overflow: 'hidden',
-          }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
-                  <th style={thStyle}>Time</th>
-                  <th style={thStyle}>Pair</th>
-                  <th style={thStyle}>Direction</th>
-                  <th style={thStyle}>Confidence</th>
-                  <th style={thStyle}>Agreement</th>
-                  <th style={thStyle}>Regime</th>
-                  <th style={thStyle}>Price</th>
-                  <th style={thStyle}>Lifecycle</th>
-                  <th style={thStyle}></th>
+            <tbody>
+              {allRows.map((signal: Signal, index: number) => (
+                <tr key={`${signal.pair}-${signal.timestamp}-${index}`}>
+                  <Td>{signal.pair.replace('=X', '')}</Td>
+
+                  <Td>
+                    <span
+                      style={{
+                        color:
+                          signal.direction === 'BUY'
+                            ? 'var(--green)'
+                            : signal.direction === 'SELL'
+                              ? 'var(--red)'
+                              : 'var(--amber)',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {signal.direction}
+                    </span>
+                  </Td>
+
+                  <Td>{Math.round(signal.confidence * 100)}%</Td>
+                  <Td>{signal.agent_agreement}</Td>
+                  <Td>{signal.macro_regime}</Td>
+                  <Td>{signal.tech_signal}</Td>
+                  <Td>{signal.sent_signal}</Td>
+                  <Td>{formatDate(signal.timestamp)}</Td>
                 </tr>
-              </thead>
-              <tbody>
-                {filteredHistory.map((signal, idx) => (
-                  <HistoryRow
-                    key={idx}
-                    signal={signal}
-                    isExpanded={expandedRow === idx}
-                    onToggle={() => setExpandedRow(expandedRow === idx ? null : idx)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+    </main>
   );
 }
 
-const thStyle: React.CSSProperties = {
-  padding: '12px 16px',
-  textAlign: 'left',
-  fontSize: 11,
-  fontWeight: 600,
-  color: 'var(--text3)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: '12px 16px',
-  fontSize: 13,
-  borderBottom: '1px solid var(--border)',
-};
-
-function HistoryRow({ signal, isExpanded, onToggle }: { 
-  signal: Signal; 
-  isExpanded: boolean; 
-  onToggle: () => void;
-}) {
-  const directionColor = 
-    signal.direction === 'BUY' ? 'var(--green)' :
-    signal.direction === 'SELL' ? 'var(--red)' :
-    'var(--text3)';
-
-  const agreementColor =
-    signal.agent_agreement === 'FULL' ? 'var(--green)' :
-    signal.agent_agreement === 'PARTIAL' ? 'var(--amber)' :
-    'var(--text3)';
-
-  const lifecycleColor =
-    signal.lifecycle_status === 'active' ? 'var(--green)' :
-    signal.lifecycle_status === 'near_expiry' ? 'var(--amber)' :
-    'var(--text3)';
-
+function Th({ children }: { children: React.ReactNode }) {
   return (
-    <>
-      <tr style={{ cursor: 'pointer' }} onClick={onToggle} className="hover:bg-bg3">
-        <td style={tdStyle} className="mono">
-          {new Date(signal.timestamp).toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </td>
-        <td style={tdStyle} className="mono">
-          {signal.pair.replace('=X', '')}
-        </td>
-        <td style={{ ...tdStyle, color: directionColor, fontWeight: 600 }}>
-          {signal.direction}
-        </td>
-        <td style={tdStyle} className="mono">
-          {(signal.confidence * 100).toFixed(0)}%
-        </td>
-        <td style={{ ...tdStyle, color: agreementColor }}>
-          {signal.agent_agreement}
-        </td>
-        <td style={tdStyle}>
-          {signal.macro_regime}
-        </td>
-        <td style={tdStyle} className="mono">
-          {signal.price_at_signal?.toFixed(5) || '—'}
-        </td>
-        <td style={{ ...tdStyle, color: lifecycleColor, fontSize: 11 }}>
-          {signal.lifecycle_status || 'active'}
-        </td>
-        <td style={{ ...tdStyle, textAlign: 'right' }}>
-          <span style={{ fontSize: 11, color: 'var(--text3)' }}>
-            {isExpanded ? '▼' : '▶'}
-          </span>
-        </td>
-      </tr>
-      {isExpanded && (
-        <tr>
-          <td colSpan={9} style={{
-            padding: 20,
-            background: 'var(--bg3)',
-            borderBottom: '1px solid var(--border)',
-          }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-              {/* Left column */}
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8, fontWeight: 600 }}>
-                  AGENT SIGNALS
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontSize: 12 }}>
-                    <span style={{ color: 'var(--text3)' }}>Macro:</span>{' '}
-                    <span style={{ color: 'var(--text)' }}>{signal.tech_signal}</span>
-                  </div>
-                  <div style={{ fontSize: 12 }}>
-                    <span style={{ color: 'var(--text3)' }}>Technical:</span>{' '}
-                    <span style={{ color: 'var(--text)' }}>{signal.tech_signal}</span>
-                  </div>
-                  <div style={{ fontSize: 12 }}>
-                    <span style={{ color: 'var(--text3)' }}>Sentiment:</span>{' '}
-                    <span style={{ color: 'var(--text)' }}>{signal.sent_signal}</span>
-                  </div>
-                </div>
-
-                {signal.entry_low && signal.entry_high && (
-                  <>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 16, marginBottom: 8, fontWeight: 600 }}>
-                      TRADE LEVELS
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ fontSize: 12 }} className="mono">
-                        <span style={{ color: 'var(--text3)' }}>Entry:</span>{' '}
-                        <span style={{ color: 'var(--text)' }}>
-                          {signal.entry_low.toFixed(5)} - {signal.entry_high.toFixed(5)}
-                        </span>
-                      </div>
-                      {signal.stop_estimate && (
-                        <div style={{ fontSize: 12 }} className="mono">
-                          <span style={{ color: 'var(--text3)' }}>Stop:</span>{' '}
-                          <span style={{ color: 'var(--red)' }}>{signal.stop_estimate.toFixed(5)}</span>
-                        </div>
-                      )}
-                      {signal.target_estimate && (
-                        <div style={{ fontSize: 12 }} className="mono">
-                          <span style={{ color: 'var(--text3)' }}>Target:</span>{' '}
-                          <span style={{ color: 'var(--green)' }}>{signal.target_estimate.toFixed(5)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Right column */}
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8, fontWeight: 600 }}>
-                  REASONING
-                </div>
-                <div style={{
-                  fontSize: 13,
-                  lineHeight: 1.6,
-                  color: 'var(--text2)',
-                  whiteSpace: 'pre-wrap',
-                }}>
-                  {signal.reasoning}
-                </div>
-              </div>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
+    <th
+      style={{
+        textAlign: 'left',
+        padding: '12px 14px',
+        color: 'var(--text3)',
+        borderBottom: '1px solid var(--border)',
+        fontSize: 11,
+        textTransform: 'uppercase',
+        letterSpacing: '0.6px',
+      }}
+    >
+      {children}
+    </th>
   );
+}
+
+function Td({ children }: { children: React.ReactNode }) {
+  return (
+    <td
+      style={{
+        padding: '12px 14px',
+        color: 'var(--text)',
+        borderBottom: '1px solid var(--border)',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </td>
+  );
+}
+
+function formatDate(value: string) {
+  if (!value) return '—';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString();
 }
