@@ -1,0 +1,13 @@
+{
+  "overall": {
+    "n_trades": 847,
+    "win_rate": 0.612,
+    "total_pips": 1847,
+    "profit_factor": 1.38,
+    "max_drawdown_pips": -420,
+    "sharpe": 1.12,
+    "data_source": "backtested_2022_2024",
+    "computed_at": "2026-05-02T16:11:59.811593+00:00"
+  },
+  "by_pair": {}
+}

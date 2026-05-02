@@ -1,0 +1,95 @@
+version: "3.3"
+
+services:
+
+  # ── Backend FastAPI ──────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: mlops/docker/Dockerfile.backend
+    container_name: fx_backend
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+      - ./fx_alphalab/outputs:/app/fx_alphalab/outputs
+    depends_on:
+      - mlflow
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Frontend React ───────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: mlops/docker/Dockerfile.frontend
+    container_name: fx_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ── MLflow Tracking Server ───────────────────────────────────────────────────
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.11.0
+    container_name: fx_mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlops/mlflow/artifacts:/mlflow/artifacts
+      - ./mlops/mlflow/mlruns:/mlflow/mlruns
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --default-artifact-root /mlflow/artifacts
+      --backend-store-uri sqlite:////mlflow/mlruns/mlflow.db
+    restart: unless-stopped
+
+  # ── Training (run once, not always-on) ──────────────────────────────────────
+  training:
+    build:
+      context: .
+      dockerfile: mlops/docker/Dockerfile.training
+    container_name: fx_training
+    env_file: .env
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+      - ./fx_alphalab/outputs:/app/fx_alphalab/outputs
+    depends_on:
+      - mlflow
+
+  # ── Prometheus ───────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: fx_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./mlops/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: unless-stopped
+
+  # ── Grafana ──────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fx_grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=alphalab123
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  grafana_data:

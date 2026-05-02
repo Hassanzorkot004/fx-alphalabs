@@ -218,7 +218,7 @@ function formatWelcomeMessage(signal: Signal): string {
   const confidence = Math.round(signal.confidence * 100);
   
   const ageHours = signal.age_hours || 0;
-  const ageText = ageHours < 1 
+  const _ageText = ageHours < 1 
     ? 'just now' 
     : ageHours < 2 
     ? `${Math.round(ageHours * 60)} min ago`

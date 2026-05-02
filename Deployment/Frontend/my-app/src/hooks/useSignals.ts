@@ -28,7 +28,7 @@ const INITIAL_STATE: SignalsState = {
   nextCycle: null,
 };
 
-export function useSignals() {
+export function useSignals(onWhisperAlert?: (alert: any) => void)  {
   const [state, setState] = useState<SignalsState>(INITIAL_STATE);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
@@ -87,6 +87,9 @@ export function useSignals() {
             // News spike detected
             console.log('[WS] News alert:', msg);
             // Could show a toast notification here
+
+          }else if (msg.type==='whisper_alert') {
+            onWhisperAlert?.(msg);
           } else if (msg.type === 'price_update') {
             // Legacy support
             setState(prev => ({

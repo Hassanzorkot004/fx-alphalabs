@@ -8,9 +8,17 @@ import AlphaBotPanel from './components/AlphaBotPanel';
 import EventCalendarPanel from './components/EventCalendarPanel';
 import NewsFeedPanel from './components/NewsFeedPanel';
 import NextUpdateCountdown from './components/NextUpdateCountdown';
+import WhisperAlertStack, { useWhisperAlerts } from './components/WhisperAlert';
+
+
 
 export default function App() {
-  const { signals, history, calendar, news, prices, liveContexts, connected, lastUpdate, nextCycle } = useSignals();
+
+  const { alerts, addAlert, dismiss } = useWhisperAlerts();
+
+  const { signals, history, calendar, news, prices, liveContexts, connected, lastUpdate, nextCycle } = useSignals(addAlert);
+
+
   const [selectedPair, setSelectedPair] = useState<string | null>(null);
   const alphaBotSendRef = useRef<((msg: string) => Promise<void>) | null>(null);
 
@@ -209,7 +217,30 @@ export default function App() {
           <span className="mono" style={{ fontSize: 10, color: 'var(--text3)' }}>
             {signals.length} active · {history.length} total
           </span>
+
+                    <WhisperAlertStack
+            alerts={alerts}
+            onDismiss={dismiss}
+            onAskAlphaBot={(prompt) => alphaBotSendRef.current?.(prompt)}
+          />
+          
         </div>
+        {/* TEST BUTTON — supprimer après */}
+<button
+  onClick={() => addAlert({
+    pair: 'EURUSD',
+    severity: 'WARNING',
+    alert_type: 'NEWS_SPIKE',
+    message: '⚠️ WARNING — 15:35 UTC\n3 bearish articles on EUR/USD. Dollar strengthening.',
+    alphabot_prompt: '3 bearish articles just hit EUR/USD. Should I be concerned?',
+    timestamp: new Date().toISOString(),
+  })}
+  style={{ position: 'fixed', bottom: 20, left: 20, zIndex: 9999, padding: '8px 16px', background: 'red', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+>
+  Test Whisper
+</button>
+
+
       </div>
   );
 }
@@ -232,6 +263,8 @@ function SkeletonCard() {
         <div style={{ height: 24, background: 'var(--border)', borderRadius: 4, width: 60 }} />
         <div style={{ height: 24, background: 'var(--border)', borderRadius: 4, width: 70 }} />
       </div>
+
+      
     </div>
   );
 }

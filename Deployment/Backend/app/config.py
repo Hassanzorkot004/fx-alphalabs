@@ -13,7 +13,7 @@ class BackendSettings(BaseSettings):
     
     # Server
     HOST: str = "0.0.0.0"
-    PORT: int = 5001
+    PORT: int = 8080
     RELOAD: bool = False
     
     # Paths - point to fx_alphalab outputs directory
@@ -26,6 +26,7 @@ class BackendSettings(BaseSettings):
     RUN_EVERY_MINS: int = 60
     RUN_ON_STARTUP: bool = True
     
+    PAIRS: List[str] = ["EURUSD=X", "GBPUSD=X", "USDJPY=X"] 
     # API Keys
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     

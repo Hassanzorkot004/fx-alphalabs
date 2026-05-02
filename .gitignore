@@ -54,3 +54,13 @@ models/*.pth
 # OS
 .DS_Store
 Thumbs.db
+
+
+mlops/mlflow/artifacts/
+mlops/mlflow/mlruns/
+mlops/mlflow/*.db
+
+
+
+
+

@@ -28,6 +28,7 @@ from app.config import settings
 from app.services import agent_service, signal_store, news_service
 from app.services.change_detector import change_detector
 from app.services.news_monitor import news_monitor
+from app.services.market_whisperer import market_whisperer
 
 # Global state for next cycle tracking
 next_cycle_ts = 0.0
@@ -108,6 +109,10 @@ async def lifespan(app: FastAPI):
     import asyncio
     news_monitor.set_spike_callback(on_sentiment_spike)
     asyncio.create_task(news_monitor.run())
+
+    asyncio.create_task(market_whisperer.start())
+    logger.info("  - Market Whisperer: every 2 minutes")
+
     
     logger.info(f"Scheduler started:")
     logger.info(f"  - Full cycle (Macro+Tech+Sent+LLM): every {settings.RUN_EVERY_MINS} min")
@@ -122,6 +127,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     news_monitor.stop()
     scheduler.shutdown()
+    market_whisperer.stop()
     logger.info("Backend stopped")
 
 
@@ -277,7 +283,20 @@ def get_next_cycle_seconds() -> int:
 # Export for use in routes
 app.state.get_next_cycle_seconds = get_next_cycle_seconds
 
-
+@app.post("/api/test-whisper")
+async def test_whisper():
+    from app.api.websocket import manager
+    alert = {
+        "type": "whisper_alert",
+        "pair": "EURUSD",
+        "severity": "WARNING",
+        "alert_type": "NEWS_SPIKE",
+        "message": "⚠️ WARNING — 15:35 UTC\n3 bearish articles on EUR/USD in 4 minutes. Dollar strengthening on Fed hawkish tone. Consider tightening stop.",
+        "alphabot_prompt": "3 bearish articles just hit EUR/USD. Should I be concerned about my SELL signal?",
+        "timestamp": "2026-05-02T15:35:00Z",
+    }
+    await manager.broadcast(alert)
+    return {"status": "sent", "clients": len(manager.active)}
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
