@@ -10,7 +10,7 @@ import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
-
+from app.auth.routes import router as auth_router
 from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
@@ -28,7 +28,8 @@ from app.config import settings
 from app.services import agent_service, signal_store, news_service
 from app.services.change_detector import change_detector
 from app.services.news_monitor import news_monitor
-
+from app.auth.database import Base, engine
+from app.auth import models
 # Global state for next cycle tracking
 next_cycle_ts = 0.0
 next_technical_ts = 0.0
@@ -123,7 +124,7 @@ async def lifespan(app: FastAPI):
     news_monitor.stop()
     scheduler.shutdown()
     logger.info("Backend stopped")
-
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="FX AlphaLab API",
@@ -147,7 +148,7 @@ app.include_router(calendar.router, prefix="/api", tags=["calendar"])
 app.include_router(news.router, prefix="/api", tags=["news"])
 app.include_router(alphabot.router, prefix="/api", tags=["alphabot"])
 app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
-
+app.include_router(auth_router)
 
 async def run_full_cycle():
     """Full cycle: Macro + Technical + Sentiment + LLM (every 60 min)"""

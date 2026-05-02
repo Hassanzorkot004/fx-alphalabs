@@ -27,22 +27,22 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "fx_alphalab"))
 
 import yaml
 from loguru import logger
 
-from agents.macro_agent      import MacroAgent
-from agents.technical_agent  import TechnicalAgent
-from agents.sentiment_agent  import SentimentAgent
-from data_feed.price_feed    import PriceFeed
-from data_feed.macro_feed    import MacroFeed
-from data_feed.news_feed     import NewsFeed
-from orchestrator.orchestrator import Orchestrator
-from memory.context_store    import ContextStore
+from fx_alphalab.agents.macro_agent import MacroAgent
+from fx_alphalab.agents.technical_agent import TechnicalAgent
+from fx_alphalab.agents.sentiment_agent import SentimentAgent
+from fx_alphalab.data_feed.price_feed import PriceFeed
+from fx_alphalab.data_feed.macro_feed import MacroFeed
+from fx_alphalab.data_feed.news_feed import NewsFeed
+from fx_alphalab.orchestrator.orchestrator import Orchestrator
+from fx_alphalab.memory.context_store import ContextStore
 
 
-CFG_PATH = "configs/agent_config.yaml"
+CFG_PATH = "fx_alphalab/config/configs/agent_config.yaml"
 
 # ── Signal output formatting ──────────────────────────────────────────────────
 

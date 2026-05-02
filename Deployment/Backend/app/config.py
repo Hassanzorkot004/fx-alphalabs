@@ -13,7 +13,7 @@ class BackendSettings(BaseSettings):
     
     # Server
     HOST: str = "0.0.0.0"
-    PORT: int = 5001
+    PORT: int = 8080
     RELOAD: bool = False
     
     # Paths - point to fx_alphalab outputs directory
