@@ -644,7 +644,7 @@ class Orchestrator:
 
     def __init__(self, cfg: dict):
         llm           = cfg["llm"]
-        self.model    = llm.get("model", "llama-3.1-70b-versatile")
+        self.model    = llm.get("model", "llama-3.1-8b-instant")
         self.host     = llm.get("host", "http://localhost:11434")
         self.temp     = llm.get("temperature", 0.1)
         self.max_tok  = llm.get("max_tokens", 512)
@@ -653,6 +653,7 @@ class Orchestrator:
         # ── Init Groq client ──────────────────────────────────────────────────
         self.groq_client = None
         groq_key = llm.get("groq_api_key", "") or os.getenv("GROQ_API_KEY", "")
+        #groq_key = llm.get("groq_api_key", "")
         if GROQ_AVAILABLE and groq_key and groq_key != "YOUR_GROQ_KEY_HERE":
             try:
                 self.groq_client = Groq(api_key=groq_key)
@@ -688,6 +689,23 @@ class Orchestrator:
                     temperature=self.temp,
                     max_tokens=self.max_tok,
                 )
+                usage = response.usage
+
+                logger.info(
+                    f"[LLM TOKENS - GROQ] "
+                    f"prompt={usage.prompt_tokens} "
+                    f"completion={usage.completion_tokens} "
+                    f"total={usage.total_tokens}"
+                )
+
+
+
+
+
+
+
+
+
                 raw = response.choices[0].message.content
                 logger.debug(f"Groq raw:\n{raw[:600]}")
                 return raw

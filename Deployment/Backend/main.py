@@ -64,14 +64,14 @@ async def lifespan(app: FastAPI):
     scheduler = AsyncIOScheduler()
     
     # Full agent cycle (every 60 minutes) - Macro + Technical + Sentiment + LLM
-    scheduler.add_job(
-        run_full_cycle,
-        trigger="interval",
-        minutes=settings.RUN_EVERY_MINS,
-        id="full_cycle",
-        max_instances=1,
-        next_run_time=datetime.now() if settings.RUN_ON_STARTUP else None,
-    )
+    # scheduler.add_job(
+    #     run_full_cycle,
+    #     trigger="interval",
+    #     minutes=settings.RUN_EVERY_MINS,
+    #     id="full_cycle",
+    #     max_instances=1,
+    #     next_run_time=datetime.now() if settings.RUN_ON_STARTUP else None,
+    # )
     
     # Technical-only cycle (every 15 minutes) - just Technical + LLM if changed
     scheduler.add_job(
@@ -110,8 +110,8 @@ async def lifespan(app: FastAPI):
     news_monitor.set_spike_callback(on_sentiment_spike)
     asyncio.create_task(news_monitor.run())
 
-    asyncio.create_task(market_whisperer.start())
-    logger.info("  - Market Whisperer: every 2 minutes")
+    # asyncio.create_task(market_whisperer.start())
+    # logger.info("  - Market Whisperer: every 2 minutes")
 
     
     logger.info(f"Scheduler started:")
@@ -127,7 +127,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     news_monitor.stop()
     scheduler.shutdown()
-    market_whisperer.stop()
+    # market_whisperer.stop()
     logger.info("Backend stopped")
 
 
@@ -283,20 +283,20 @@ def get_next_cycle_seconds() -> int:
 # Export for use in routes
 app.state.get_next_cycle_seconds = get_next_cycle_seconds
 
-@app.post("/api/test-whisper")
-async def test_whisper():
-    from app.api.websocket import manager
-    alert = {
-        "type": "whisper_alert",
-        "pair": "EURUSD",
-        "severity": "WARNING",
-        "alert_type": "NEWS_SPIKE",
-        "message": "⚠️ WARNING — 15:35 UTC\n3 bearish articles on EUR/USD in 4 minutes. Dollar strengthening on Fed hawkish tone. Consider tightening stop.",
-        "alphabot_prompt": "3 bearish articles just hit EUR/USD. Should I be concerned about my SELL signal?",
-        "timestamp": "2026-05-02T15:35:00Z",
-    }
-    await manager.broadcast(alert)
-    return {"status": "sent", "clients": len(manager.active)}
+# @app.post("/api/test-whisper")
+# async def test_whisper():
+#     from app.api.websocket import manager
+#     alert = {
+#         "type": "whisper_alert",
+#         "pair": "EURUSD",
+#         "severity": "WARNING",
+#         "alert_type": "NEWS_SPIKE",
+#         "message": "⚠️ WARNING — 15:35 UTC\n3 bearish articles on EUR/USD in 4 minutes. Dollar strengthening on Fed hawkish tone. Consider tightening stop.",
+#         "alphabot_prompt": "3 bearish articles just hit EUR/USD. Should I be concerned about my SELL signal?",
+#         "timestamp": "2026-05-02T15:35:00Z",
+#     }
+#     await manager.broadcast(alert)
+#     return {"status": "sent", "clients": len(manager.active)}
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

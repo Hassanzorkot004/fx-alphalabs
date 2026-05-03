@@ -100,7 +100,7 @@ def example_training_with_mlflow():
             "batch_size":       256,
             "learning_rate":    3e-4,
             "walk_forward_folds": 5,
-            "llm_model":        "llama-3.3-70b-versatile",
+            "llm_model":        "llama-3.1-8b-instant",
             "llm_provider":     "groq",
         })
 
