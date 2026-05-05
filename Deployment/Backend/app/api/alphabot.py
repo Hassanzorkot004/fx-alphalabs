@@ -67,13 +67,20 @@ You can show charts to visualize your explanations. When a chart would help, inc
 - [CHART:correlation:24h] - Correlation heatmap showing how pairs move together
 - [CHART:volatility:24h] - ATR volatility chart for position sizing
 
-Use charts when:
-- User asks to "show me" or "visualize" something
-- Explaining technical indicators (show the RSI chart when discussing RSI)
-- Discussing trade levels (show price chart with entry/stop/target)
-- Explaining risk (show risk visualization)
-- Discussing diversification or multiple positions (show correlation heatmap)
-- Discussing position sizing or market conditions (show volatility chart)
+CHART USAGE RULES:
+- Only show charts when they DIRECTLY answer the user's question
+- If user asks about news, sentiment, or fundamentals → NO charts (unless they specifically ask)
+- If user asks about price action, technicals, or "show me" → YES, show relevant charts
+- Maximum 1-2 charts per response unless user explicitly asks for more
+- Don't show correlation/volatility charts unless discussing diversification or position sizing
+
+Examples:
+✓ "What's the technical setup?" → Show price + RSI/MACD
+✓ "Show me the risk" → Show risk chart
+✓ "How does this news affect EURUSD?" → NO charts, just explain
+✓ "Should I diversify with GBPUSD?" → Show correlation chart
+✗ "What's your confidence?" → NO charts, just state the number
+✗ General questions → Don't dump all available charts
 
 FORBIDDEN:
 - Never mention model internals (TCN, LSTM, HMM, logistic regression, etc.)
@@ -117,13 +124,27 @@ You can show charts to support your analysis. Include chart commands when releva
 - [CHART:correlation:24h] - Correlation matrix (risk management)
 - [CHART:volatility:24h] - ATR volatility (position sizing)
 
-Use charts to:
-- Visualize technical setups
-- Show indicator divergences
-- Illustrate risk/reward scenarios
-- Display agent agreement/conflict
-- Analyze correlation risk when discussing multiple positions
-- Show volatility for position sizing recommendations
+**CHART USAGE RULES - READ CAREFULLY:**
+- Default to NO charts unless they directly answer the user's question
+- Maximum 1-2 charts per response (unless user explicitly asks for more)
+- If user asks about news/fundamentals → NO charts, just text explanation
+- If user asks about technicals/price → Show relevant technical charts only
+- If user asks "why" or general questions → Text only, no charts
+
+Show charts ONLY when:
+- User explicitly requests: "show me", "chart", "visualize"
+- User asks about specific indicator → show ONLY that indicator
+- User asks about risk/levels → show risk chart
+- User asks about diversification → show correlation
+- User asks about position sizing → show volatility
+
+DO NOT show charts when:
+- User asks about news impact (text is sufficient)
+- User asks general questions about confidence or reasoning
+- User is exploring concepts rather than specific setups
+- Charts don't add value beyond what text can explain
+
+**If in doubt, skip the chart. Text-first, charts only when they add clear analytical value.**
 
 TIMEFRAME CONTEXT:
 Always reference agent horizons when relevant:

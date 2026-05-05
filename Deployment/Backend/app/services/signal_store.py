@@ -50,13 +50,17 @@ class SignalStore:
                     
             # Convert numeric columns
             numeric_cols = ["confidence", "position_size", "macro_conf", "tech_conf", "sent_conf",
-                           "price_at_signal", "atr", "yield_z", "carry_signal", "vix_z",
+                           "price_at_signal", "atr", "entry_low", "entry_high", "stop_estimate", "target_estimate",
+                           "yield_z", "carry_signal", "vix_z",
                            "regime_prob_bull", "regime_prob_neut", "regime_prob_bear",
                            "p_buy", "p_sell", "p_hold", "model_conf",
-                           "rsi14", "macd_hist", "bb_pos", "p_bullish", "sent_raw"]
+                           "rsi14", "macd_hist", "bb_pos", "p_bullish", "n_articles", "sent_raw"]
             for col in numeric_cols:
                 if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+                    # For stop/target, keep NaN as None (don't fill with 0)
+                    if col not in ["stop_estimate", "target_estimate"]:
+                        df[col] = df[col].fillna(0.0)
             
             # Sort by timestamp descending
             if "timestamp" in df.columns:

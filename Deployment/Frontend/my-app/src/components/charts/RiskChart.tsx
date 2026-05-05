@@ -5,7 +5,6 @@ interface RiskChartProps {
 export default function RiskChart({ data }: RiskChartProps) {
   const {
     pair,
-    direction,
     current_price,
     entry_low,
     entry_high,
@@ -18,7 +17,6 @@ export default function RiskChart({ data }: RiskChartProps) {
     risk_level,
   } = data;
 
-  const directionColor = direction === 'BUY' ? 'var(--green)' : 'var(--red)';
   const riskLevelColor = risk_level === 'LOW' ? 'var(--green)' :
                          risk_level === 'MEDIUM' ? 'var(--amber)' : 'var(--red)';
 

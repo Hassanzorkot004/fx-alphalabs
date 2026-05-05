@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import App from './App';
 import HistoryPage from './pages/HistoryPage';
+import PerformancePage from './pages/PerformancePage';
 import SettingsPage from './pages/SettingsPage';
 
-type Page = 'dashboard' | 'history' | 'settings';
+type Page = 'dashboard' | 'history' | 'performance' | 'settings';
 
 export default function AppWithRouter() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
@@ -31,6 +32,11 @@ export default function AppWithRouter() {
             onClick={() => setCurrentPage('history')}
           />
           <NavButton
+            label="Performance"
+            isActive={currentPage === 'performance'}
+            onClick={() => setCurrentPage('performance')}
+          />
+          <NavButton
             label="Settings"
             isActive={currentPage === 'settings'}
             onClick={() => setCurrentPage('settings')}
@@ -40,6 +46,7 @@ export default function AppWithRouter() {
         {/* Page Content */}
         {currentPage === 'dashboard' && <App />}
         {currentPage === 'history' && <HistoryPage />}
+        {currentPage === 'performance' && <PerformancePage />}
         {currentPage === 'settings' && <SettingsPage />}
       </div>
     </ErrorBoundary>

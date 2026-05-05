@@ -10,7 +10,7 @@ export default function NewsFeedPanel({ articles, selectedPair, onArticleClick }
   // Filter to articles relevant to selected pair
   const filteredArticles = selectedPair
     ? articles.filter(article => {
-        const pairCurrencies = selectedPair.replace('=X', '').match(/.{3}/g) || [];
+        const pairCurrencies: string[] = selectedPair.replace('=X', '').match(/.{3}/g) || [];
         return article.tags.some(tag => pairCurrencies.includes(tag));
       })
     : articles;

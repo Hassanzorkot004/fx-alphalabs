@@ -282,13 +282,6 @@ function formatWelcomeMessage(signal: Signal): string {
   const pairName = signal.pair.replace('=X', '');
   const direction = signal.direction;
   const confidence = Math.round(signal.confidence * 100);
-  
-  const ageHours = signal.age_hours || 0;
-  const ageText = ageHours < 1 
-    ? 'just now' 
-    : ageHours < 2 
-    ? `${Math.round(ageHours * 60)} min ago`
-    : `${Math.round(ageHours)}h ago`;
 
   return `We have a ${direction} signal for ${pairName}, but our confidence is only ${confidence}%, which is relatively low. This means we're not extremely sure about the direction.
 

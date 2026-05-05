@@ -10,7 +10,7 @@ interface AlphaBotPanelProps {
 }
 
 export default function AlphaBotPanel({ pair, signal, onSendMessage }: AlphaBotPanelProps) {
-  const { messages, isLoading, error, mode, sendMessage, toggleMode, clearChat } = useAlphaBot(pair, signal);
+  const { messages, isLoading, error, mode, sendMessage, clearChat } = useAlphaBot(pair, signal);
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 

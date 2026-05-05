@@ -1,6 +1,7 @@
 """Chart data endpoints"""
 
 from fastapi import APIRouter, HTTPException, Query
+from loguru import logger
 
 from app.services.chart_service import chart_service
 
@@ -91,6 +92,7 @@ async def get_risk_visualization(pair: str):
     result = chart_service.get_risk_visualization(pair)
     
     if "error" in result:
+        logger.warning(f"Risk visualization error for {pair}: {result['error']}")
         raise HTTPException(status_code=404, detail=result["error"])
     
     return result

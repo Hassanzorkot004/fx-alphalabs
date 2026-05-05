@@ -101,6 +101,9 @@ class ChartService:
             # Calculate correlation matrix
             corr_matrix = returns.corr()
             
+            # Replace NaN values with 0
+            corr_matrix = corr_matrix.fillna(0)
+            
             # Convert to list format
             pairs_list = list(corr_matrix.columns)
             matrix = corr_matrix.values.tolist()
@@ -174,14 +177,26 @@ class ChartService:
             for idx in range(len(data)):
                 try:
                     row = data.iloc[idx]
+                    
+                    # Helper to sanitize float values
+                    def safe_float(val, default=0.0):
+                        if pd.isna(val) or np.isnan(val) or np.isinf(val):
+                            return default
+                        return float(val)
+                    
                     candle = {
                         "time": data.index[idx].isoformat(),
-                        "open": round(float(row["Open"]), 5),
-                        "high": round(float(row["High"]), 5),
-                        "low": round(float(row["Low"]), 5),
-                        "close": round(float(row["Close"]), 5),
-                        "volume": int(row["Volume"]) if "Volume" in data.columns and not pd.isna(row["Volume"]) else 0,
+                        "open": round(safe_float(row["Open"]), 5),
+                        "high": round(safe_float(row["High"]), 5),
+                        "low": round(safe_float(row["Low"]), 5),
+                        "close": round(safe_float(row["Close"]), 5),
+                        "volume": int(safe_float(row["Volume"], 0)) if "Volume" in data.columns else 0,
                     }
+                    
+                    # Skip candles with zero prices (invalid data)
+                    if candle["open"] == 0 or candle["high"] == 0 or candle["low"] == 0 or candle["close"] == 0:
+                        continue
+                    
                     candles.append(candle)
                 except (KeyError, ValueError, TypeError, IndexError) as e:
                     logger.warning(f"Skipping candle at index {idx}: {e}")
@@ -196,15 +211,25 @@ class ChartService:
             signal = signal_store.get_latest_for_pair(clean_pair)
             signal_levels = None
             if signal:
+                # Helper to sanitize values
+                def sanitize_value(val):
+                    if val is None:
+                        return None
+                    if isinstance(val, (int, float)):
+                        if np.isnan(val) or np.isinf(val):
+                            return None
+                        return float(val)
+                    return val
+                
                 signal_levels = {
-                    "entry_low": signal.get("entry_low"),
-                    "entry_high": signal.get("entry_high"),
-                    "stop": signal.get("stop_estimate"),
-                    "target": signal.get("target_estimate"),
+                    "entry_low": sanitize_value(signal.get("entry_low")),
+                    "entry_high": sanitize_value(signal.get("entry_high")),
+                    "stop": sanitize_value(signal.get("stop_estimate")),
+                    "target": sanitize_value(signal.get("target_estimate")),
                     "direction": signal.get("direction"),
                 }
             
-            return {
+            result = {
                 "type": "price",
                 "pair": clean_pair,
                 "timeframe": period,
@@ -212,6 +237,18 @@ class ChartService:
                 "signal_levels": signal_levels,
                 "current_price": candles[-1]["close"] if candles else None,
             }
+            
+            # Final NaN check before returning
+            try:
+                import json
+                json.dumps(result)  # Test serialization
+            except ValueError as e:
+                logger.error(f"JSON serialization failed for {pair}: {e}")
+                logger.error(f"Result keys: {result.keys()}")
+                logger.error(f"Signal levels: {signal_levels}")
+                return {"error": f"Data serialization error: {str(e)}"}
+            
+            return result
             
         except Exception as e:
             logger.error(f"Price chart generation failed for {pair}: {e}")
@@ -566,27 +603,54 @@ class ChartService:
             signal = signal_store.get_latest_for_pair(pair)
             
             if not signal:
+                logger.warning(f"Risk viz: No signal found for {pair}")
                 return {"error": f"No signal data for {pair}"}
             
             from app.services.live_context_service import calculate_risk_metrics
             current_price = signal.get("price_at_signal", 0)
+            stop = signal.get("stop_estimate")
+            target = signal.get("target_estimate")
+            
+            logger.debug(f"Risk viz for {pair}: price={current_price}, stop={stop}, target={target}")
+            
+            # Validate required fields
+            if not current_price or current_price == 0:
+                logger.warning(f"Risk viz: No current price for {pair} (got {current_price})")
+                return {"error": f"No current price data for {pair}"}
+            
+            # Check if stop/target are None or 0 (both indicate missing data)
+            if stop is None or stop == 0 or target is None or target == 0:
+                logger.warning(f"Risk viz: Incomplete data for {pair} - stop={stop}, target={target}")
+                return {"error": f"Incomplete signal data for {pair}"}
+            
             risk_metrics = calculate_risk_metrics(signal, current_price)
+            
+            # Helper function to sanitize float values
+            def sanitize_float(value, default=0.0):
+                """Convert NaN/inf to default value"""
+                if value is None:
+                    return default
+                if isinstance(value, (int, float)):
+                    if np.isnan(value) or np.isinf(value):
+                        return default
+                    return float(value)
+                return default
             
             return {
                 "type": "risk",
                 "pair": pair,
                 "direction": signal.get("direction"),
-                "current_price": current_price,
-                "entry_low": signal.get("entry_low"),
-                "entry_high": signal.get("entry_high"),
-                "stop_loss": signal.get("stop_estimate"),
-                "take_profit": signal.get("target_estimate"),
-                "risk_pips": risk_metrics["stop_distance_pips"],
-                "reward_pips": risk_metrics["target_distance_pips"],
-                "rr_ratio": risk_metrics["risk_reward_ratio"],
-                "position_size": risk_metrics["position_risk_pct"],
+                "current_price": sanitize_float(current_price),
+                "entry_low": sanitize_float(signal.get("entry_low")),
+                "entry_high": sanitize_float(signal.get("entry_high")),
+                "stop_loss": sanitize_float(signal.get("stop_estimate")),
+                "take_profit": sanitize_float(signal.get("target_estimate")),
+                "risk_pips": sanitize_float(risk_metrics["stop_distance_pips"]),
+                "reward_pips": sanitize_float(risk_metrics["target_distance_pips"]),
+                "rr_ratio": sanitize_float(risk_metrics["risk_reward_ratio"]),
+                "position_size": sanitize_float(risk_metrics["position_risk_pct"]),
                 "risk_level": risk_metrics["risk_level"],
-                "max_loss": risk_metrics["max_loss_estimate"],
+                "max_loss": sanitize_float(risk_metrics["max_loss_estimate"]),
             }
             
         except Exception as e:
