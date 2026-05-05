@@ -173,8 +173,8 @@ async def run_technical_cycle():
     try:
         logger.info("─── Technical cycle start ───")
         
-        # Get pairs to analyze
-        pairs = settings.PAIRS
+        # Get pairs to analyze (default pairs without =X suffix)
+        pairs = ["EURUSD", "GBPUSD", "USDJPY"]
         
         # Run Technical Agent only
         tech_outputs = await agent_service.run_technical_only(pairs)

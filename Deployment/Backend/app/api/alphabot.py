@@ -51,6 +51,7 @@ When in SIMPLE mode:
 - Keep responses concise — 2-4 sentences unless a detailed breakdown is requested
 - Never mention model internals (HMM, TCN, LSTM, LogisticRegression)
 - Talk about what it means for the trader, not what the model computed
+- When discussing risk, explain it in practical terms (e.g., "you're risking 50 pips to potentially gain 100 pips")
 
 Current signal context is provided. Answer questions about it honestly.
 If confidence is low or the signal is a HOLD, say so clearly.
@@ -68,6 +69,7 @@ When in PRO mode:
 - Identify the key driver feature explicitly
 - Discuss conflict resolution logic when agents disagree
 - Be direct and dense — no hand-holding
+- When discussing risk, cite specific metrics (R:R ratio, position size %, stop distance in pips)
 
 Current signal context is provided. Be precise. Never fabricate values.
 """
@@ -82,8 +84,21 @@ def build_signal_context(pair: str, mode: str) -> str:
     headlines = signal_store.get_recent_headlines(pair)
     events = calendar_service.get_upcoming(hours_ahead=12)
     pair_events = [e for e in events if pair.replace("=X", "") in e.get("pairs_affected", [])]
+    
+    # Calculate risk metrics
+    from app.services.live_context_service import calculate_risk_metrics
+    current_price = signal.get("price_at_signal", 0)
+    risk_metrics = calculate_risk_metrics(signal, current_price)
 
     if mode == "simple":
+        risk_summary = ""
+        if risk_metrics["risk_level"] != "UNKNOWN":
+            risk_summary = f"""
+Risk Assessment: {risk_metrics['risk_level']} risk
+- You're risking {risk_metrics['stop_distance_pips']:.0f} pips to potentially gain {risk_metrics['target_distance_pips']:.0f} pips (1:{risk_metrics['risk_reward_ratio']:.1f} reward-to-risk)
+- Position size: {risk_metrics['position_risk_pct']:.1f}% of account
+"""
+        
         ctx = f"""
 CURRENT SIGNAL — {pair.replace('=X', '')}
 Direction: {signal.get('direction')} | Agreement: {signal.get('agent_agreement')} | Confidence: {signal.get('confidence', 0)*100:.0f}%
@@ -94,8 +109,17 @@ What each analyst sees:
 - Sentiment (8h view): {signal.get('sent_signal', '?')} — {signal.get('n_articles', 0)} relevant news articles
 
 Current price: {signal.get('price_at_signal', '?')}
-"""
+{risk_summary}"""
     else:
+        risk_summary = ""
+        if risk_metrics["risk_level"] != "UNKNOWN":
+            risk_summary = f"""
+RISK METRICS:
+  risk_level: {risk_metrics['risk_level']} | R:R ratio: 1:{risk_metrics['risk_reward_ratio']:.2f}
+  position_risk: {risk_metrics['position_risk_pct']:.2f}% | stop_distance: {risk_metrics['stop_distance_pips']:.1f} pips | target_distance: {risk_metrics['target_distance_pips']:.1f} pips
+  max_loss_estimate: {risk_metrics['max_loss_estimate']:.2f} pips (position-weighted)
+"""
+        
         ctx = f"""
 SIGNAL CONTEXT — {pair.replace('=X', '')} — {signal.get('timestamp', '')}
 Direction: {signal.get('direction')} | Agreement: {signal.get('agent_agreement')} | Confidence: {signal.get('confidence', 0):.3f} | Source: {signal.get('source')}
@@ -114,7 +138,7 @@ SENTIMENT AGENT (8h horizon):
 TRADE LEVELS:
   price: {signal.get('price_at_signal')} | ATR: {signal.get('atr')}
   entry: {signal.get('entry_low')}–{signal.get('entry_high')} | stop: {signal.get('stop_estimate')} | target: {signal.get('target_estimate')}
-
+{risk_summary}
 ORCHESTRATOR REASONING: {signal.get('reasoning', '')}
 """
 

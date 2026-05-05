@@ -37,7 +37,7 @@ export default function AlphaBotPanel({ pair, signal, onSendMessage }: AlphaBotP
   const exampleQuestions = [
     "Why this direction?",
     "What's the risk?",
-    "Show me the trade levels",
+    "Explain the risk/reward",
     "What do the agents say?",
   ];
 
@@ -67,25 +67,17 @@ export default function AlphaBotPanel({ pair, signal, onSendMessage }: AlphaBotP
           <div className="mono" style={{ fontSize: 11, color: 'var(--text3)' }}>
             {pair}
           </div>
+          <div className="mono" style={{ 
+            fontSize: 10, 
+            color: 'var(--text3)',
+            padding: '2px 8px',
+            background: 'var(--bg3)',
+            borderRadius: 4,
+          }}>
+            {mode.toUpperCase()} MODE
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={toggleMode}
-            title="Toggle explanation style (quick override)"
-            style={{
-              background: mode === 'pro' ? 'var(--amber)20' : 'var(--bg3)',
-              border: `1px solid ${mode === 'pro' ? 'var(--amber)' : 'var(--border)'}`,
-              color: mode === 'pro' ? 'var(--amber)' : 'var(--text3)',
-              padding: '4px 10px',
-              borderRadius: 4,
-              fontSize: 10,
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            {mode.toUpperCase()}
-          </button>
           <button
             onClick={clearChat}
             style={{

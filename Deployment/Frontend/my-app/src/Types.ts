@@ -74,6 +74,14 @@ export interface LiveContext {
     reason: string;
     action_recommended: string;
   };
+  risk_metrics: {
+    risk_reward_ratio: number;
+    position_risk_pct: number;
+    stop_distance_pips: number;
+    target_distance_pips: number;
+    risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'UNKNOWN';
+    max_loss_estimate: number;
+  };
   freshness: {
     signal_generated_at: string;
     price_checked_at: string;

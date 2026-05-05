@@ -190,6 +190,72 @@ export default function SignalCardNew({ signal, price, liveContext, isSelected, 
         </div>
       )}
 
+      {/* Risk Metrics */}
+      {liveContext?.risk_metrics && liveContext.risk_metrics.risk_level !== 'UNKNOWN' && (
+        <div style={{
+          background: 'var(--bg3)',
+          borderRadius: 4,
+          padding: 8,
+          marginBottom: 12,
+          fontSize: 10,
+        }}>
+          <div style={{ 
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 6,
+          }}>
+            <span style={{ 
+              color: 'var(--text3)', 
+              fontSize: 9,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              fontWeight: 600,
+            }}>
+              Risk Profile
+            </span>
+            <span style={{
+              padding: '2px 6px',
+              borderRadius: 3,
+              fontSize: 9,
+              fontWeight: 600,
+              background: liveContext.risk_metrics.risk_level === 'LOW' ? 'var(--green)20' :
+                         liveContext.risk_metrics.risk_level === 'MEDIUM' ? 'var(--amber)20' : 'var(--red)20',
+              color: liveContext.risk_metrics.risk_level === 'LOW' ? 'var(--green)' :
+                     liveContext.risk_metrics.risk_level === 'MEDIUM' ? 'var(--amber)' : 'var(--red)',
+              border: `1px solid ${liveContext.risk_metrics.risk_level === 'LOW' ? 'var(--green)40' :
+                                   liveContext.risk_metrics.risk_level === 'MEDIUM' ? 'var(--amber)40' : 'var(--red)40'}`,
+            }}>
+              {liveContext.risk_metrics.risk_level}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <span style={{ color: 'var(--text3)' }}>R:R </span>
+              <span className="mono" style={{ 
+                color: liveContext.risk_metrics.risk_reward_ratio >= 2 ? 'var(--green)' : 
+                       liveContext.risk_metrics.risk_reward_ratio >= 1.5 ? 'var(--amber)' : 'var(--text2)',
+                fontWeight: 500 
+              }}>
+                1:{liveContext.risk_metrics.risk_reward_ratio.toFixed(1)}
+              </span>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text3)' }}>Risk: </span>
+              <span className="mono" style={{ color: 'var(--text2)', fontWeight: 500 }}>
+                {liveContext.risk_metrics.position_risk_pct.toFixed(1)}%
+              </span>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text3)' }}>Stop: </span>
+              <span className="mono" style={{ color: 'var(--red)', fontWeight: 500 }}>
+                {liveContext.risk_metrics.stop_distance_pips.toFixed(0)}p
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Technical Indicators from Model */}
       {techIndicators && (techIndicators.p_buy !== undefined || techIndicators.rsi_14 !== null) && (
         <div style={{

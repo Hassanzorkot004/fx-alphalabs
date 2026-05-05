@@ -14,9 +14,30 @@ export default function App() {
   const [selectedPair, setSelectedPair] = useState<string | null>(null);
   const alphaBotSendRef = useRef<((msg: string) => Promise<void>) | null>(null);
 
+  // Load watchlist from settings
+  const getWatchlist = (): string[] => {
+    try {
+      const stored = localStorage.getItem('fx-alphalab-settings');
+      if (stored) {
+        const settings = JSON.parse(stored);
+        return settings.watchlist || ['EURUSD', 'GBPUSD', 'USDJPY'];
+      }
+    } catch (err) {
+      console.error('Failed to load watchlist:', err);
+    }
+    return ['EURUSD', 'GBPUSD', 'USDJPY'];
+  };
+
+  // Filter signals based on watchlist
+  const watchlist = getWatchlist();
+  const filteredSignals = signals.filter(s => {
+    const pairName = s.pair.replace('=X', '');
+    return watchlist.includes(pairName);
+  });
+
   // Auto-select first signal if none selected
-  const activePair = selectedPair || signals[0]?.pair || 'EURUSD=X';
-  const activeSignal = signals.find(s => s.pair === activePair) || null;
+  const activePair = selectedPair || filteredSignals[0]?.pair || 'EURUSD=X';
+  const activeSignal = filteredSignals.find(s => s.pair === activePair) || null;
 
   // Handle news article click
   const handleNewsClick = (article: NewsArticle) => {
@@ -94,11 +115,11 @@ export default function App() {
               Live Signals
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-              {signals.length === 0 ? (
+              {filteredSignals.length === 0 ? (
                 [0, 1, 2].map(i => <SkeletonCard key={i} />)
               ) : (
                 // Sort signals in fixed order: EURUSD, GBPUSD, USDJPY
-                [...signals].sort((a, b) => {
+                [...filteredSignals].sort((a, b) => {
                   const order = ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X'];
                   return order.indexOf(a.pair) - order.indexOf(b.pair);
                 }).map(signal => (
@@ -207,7 +228,7 @@ export default function App() {
             FX AlphaLab v2.0 · llama-3.3-70b-versatile · signals updated every 60 min
           </span>
           <span className="mono" style={{ fontSize: 10, color: 'var(--text3)' }}>
-            {signals.length} active · {history.length} total
+            {filteredSignals.length} active · {history.length} total
           </span>
         </div>
       </div>

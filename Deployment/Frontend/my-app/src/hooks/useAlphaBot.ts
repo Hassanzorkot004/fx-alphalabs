@@ -9,6 +9,33 @@ interface AlphaBotState {
   mode: 'simple' | 'pro';
 }
 
+// Storage key for chat history
+const CHAT_STORAGE_KEY = 'fx-alphalab-chat-history';
+
+// Load chat history from localStorage
+function loadChatHistory(): Record<string, ChatMessage[]> {
+  try {
+    const stored = localStorage.getItem(CHAT_STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (err) {
+    console.error('Failed to load chat history:', err);
+  }
+  return {};
+}
+
+// Save chat history to localStorage
+function saveChatHistory(pair: string, messages: ChatMessage[]) {
+  try {
+    const history = loadChatHistory();
+    history[pair] = messages;
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(history));
+  } catch (err) {
+    console.error('Failed to save chat history:', err);
+  }
+}
+
 export function useAlphaBot(pair: string, signal: Signal | null, useStreaming: boolean = true) {
   // Load default mode from settings
   const getInitialMode = (): 'simple' | 'pro' => {
@@ -31,18 +58,37 @@ export function useAlphaBot(pair: string, signal: Signal | null, useStreaming: b
     mode: getInitialMode(),
   });
 
-  // Auto-send welcome message when pair changes
+  // Load chat history for this pair when pair changes
   useEffect(() => {
-    if (signal) {
-      const welcomeMessage = formatWelcomeMessage(signal);
+    const history = loadChatHistory();
+    const pairMessages = history[pair] || [];
+    
+    // If we have saved messages for this pair, restore them
+    if (pairMessages.length > 0) {
       setState(prev => ({
         ...prev,
-        messages: [{ role: 'assistant', content: welcomeMessage }],
+        messages: pairMessages,
       }));
+    } else if (signal) {
+      // Otherwise, show welcome message for new pairs
+      const welcomeMessage = formatWelcomeMessage(signal);
+      const newMessages = [{ role: 'assistant' as const, content: welcomeMessage }];
+      setState(prev => ({
+        ...prev,
+        messages: newMessages,
+      }));
+      saveChatHistory(pair, newMessages);
     } else {
       setState(prev => ({ ...prev, messages: [] }));
     }
-  }, [pair, signal]); // Depend on both pair AND signal
+  }, [pair]); // Only depend on pair, not signal
+
+  // Save messages whenever they change
+  useEffect(() => {
+    if (state.messages.length > 0) {
+      saveChatHistory(pair, state.messages);
+    }
+  }, [state.messages, pair]);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
@@ -194,12 +240,32 @@ export function useAlphaBot(pair: string, signal: Signal | null, useStreaming: b
   }, []);
 
   const clearChat = useCallback(() => {
+    // Keep only the welcome message if signal exists
+    let newMessages: ChatMessage[] = [];
+    if (signal) {
+      const welcomeMessage = formatWelcomeMessage(signal);
+      newMessages = [{ role: 'assistant', content: welcomeMessage }];
+    }
+    
     setState(prev => ({
       ...prev,
-      messages: [],
+      messages: newMessages,
       error: null,
     }));
-  }, []);
+    
+    // Update localStorage with just the welcome message
+    try {
+      const history = loadChatHistory();
+      if (newMessages.length > 0) {
+        history[pair] = newMessages;
+      } else {
+        delete history[pair];
+      }
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(history));
+    } catch (err) {
+      console.error('Failed to clear chat history:', err);
+    }
+  }, [pair, signal]);
 
   return {
     messages: state.messages,

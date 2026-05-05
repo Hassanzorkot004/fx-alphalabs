@@ -10,6 +10,78 @@ from loguru import logger
 from app.services.signal_validator import signal_validator
 
 
+def calculate_risk_metrics(signal: Dict, current_price: float) -> Dict:
+    """
+    Calculate risk management metrics for a signal.
+    
+    Returns:
+        {
+            "risk_reward_ratio": float,  # Target pips / Stop pips
+            "position_risk_pct": float,  # % of account at risk (based on position_size)
+            "stop_distance_pips": float, # Distance to stop in pips
+            "target_distance_pips": float, # Distance to target in pips
+            "risk_level": str,  # "LOW" | "MEDIUM" | "HIGH"
+            "max_loss_estimate": float,  # Estimated max loss if stopped out
+        }
+    """
+    direction = signal.get("direction", "HOLD")
+    stop = signal.get("stop_estimate")
+    target = signal.get("target_estimate")
+    position_size = signal.get("position_size", 0)
+    pair = signal.get("pair", "")
+    
+    # Default values
+    result = {
+        "risk_reward_ratio": 0,
+        "position_risk_pct": 0,
+        "stop_distance_pips": 0,
+        "target_distance_pips": 0,
+        "risk_level": "UNKNOWN",
+        "max_loss_estimate": 0,
+    }
+    
+    if not stop or not target or direction == "HOLD":
+        return result
+    
+    # Calculate pip distances
+    pip_multiplier = 100 if "JPY" in pair else 10000
+    
+    if direction == "BUY":
+        stop_distance_pips = abs(current_price - stop) * pip_multiplier
+        target_distance_pips = abs(target - current_price) * pip_multiplier
+    else:  # SELL
+        stop_distance_pips = abs(stop - current_price) * pip_multiplier
+        target_distance_pips = abs(current_price - target) * pip_multiplier
+    
+    # Risk/Reward ratio
+    rr_ratio = target_distance_pips / stop_distance_pips if stop_distance_pips > 0 else 0
+    
+    # Position risk % (position_size is already a fraction like 0.02 = 2%)
+    position_risk_pct = position_size * 100
+    
+    # Max loss estimate (in pips, weighted by position size)
+    max_loss_estimate = stop_distance_pips * position_size * 100
+    
+    # Risk level classification
+    if position_risk_pct <= 1.0 and rr_ratio >= 2.0:
+        risk_level = "LOW"
+    elif position_risk_pct <= 2.0 and rr_ratio >= 1.5:
+        risk_level = "MEDIUM"
+    else:
+        risk_level = "HIGH"
+    
+    result.update({
+        "risk_reward_ratio": round(rr_ratio, 2),
+        "position_risk_pct": round(position_risk_pct, 2),
+        "stop_distance_pips": round(stop_distance_pips, 1),
+        "target_distance_pips": round(target_distance_pips, 1),
+        "risk_level": risk_level,
+        "max_loss_estimate": round(max_loss_estimate, 2),
+    })
+    
+    return result
+
+
 class LiveContextService:
     """Manages live context updates for active signals"""
     
@@ -37,7 +109,7 @@ class LiveContextService:
         
         # Get last Technical Agent output from signal (real model results)
         tech_indicators = {
-            "rsi_14": signal.get("rsi14") * 100 if signal.get("rsi14") is not None else None,  # Signal stores 0-1, display as 0-100
+            "rsi_14": signal.get("rsi14") if signal.get("rsi14") is not None else None,  # Signal already stores RSI as 0-100
             "p_buy": signal.get("p_buy", 0),
             "p_sell": signal.get("p_sell", 0),
             "p_hold": signal.get("p_hold", 0),
@@ -48,6 +120,9 @@ class LiveContextService:
         
         # Check validity
         validity = signal_validator.check_signal_validity(signal, current_price)
+        
+        # Calculate risk metrics
+        risk_metrics = calculate_risk_metrics(signal, current_price)
         
         # Compute age and freshness
         try:
@@ -116,6 +191,7 @@ class LiveContextService:
             "tech_indicators": tech_indicators,
             "price_context": price_context,
             "validity": validity,
+            "risk_metrics": risk_metrics,
             "freshness": freshness,
         }
     
