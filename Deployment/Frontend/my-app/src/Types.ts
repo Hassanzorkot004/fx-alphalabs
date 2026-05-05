@@ -148,6 +148,14 @@ export interface WSMessage {
 export interface ChatMessage {
   role:    'user' | 'assistant';
   content: string;
+  charts?: ChartData[];  // Optional chart data
+}
+
+export interface ChartData {
+  type: 'price' | 'indicator' | 'risk' | 'agent_confidence';
+  pair: string;
+  data: any;  // Chart-specific data structure
+  config?: any;  // Chart-specific configuration
 }
 
 export interface AlphaBotMode {

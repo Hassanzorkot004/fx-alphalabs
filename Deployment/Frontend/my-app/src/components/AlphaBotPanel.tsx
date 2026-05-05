@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAlphaBot } from '../hooks/useAlphaBot';
 import type { Signal } from '../Types';
+import ChartRenderer from './charts/ChartRenderer';
 
 interface AlphaBotPanelProps {
   pair: string;
@@ -35,10 +36,10 @@ export default function AlphaBotPanel({ pair, signal, onSendMessage }: AlphaBotP
   };
 
   const exampleQuestions = [
-    "Why this direction?",
-    "What's the risk?",
+    "Show me the price chart",
+    "What's the RSI looking like?",
     "Explain the risk/reward",
-    "What do the agents say?",
+    "Why this direction?",
   ];
 
   return (
@@ -120,7 +121,7 @@ export default function AlphaBotPanel({ pair, signal, onSendMessage }: AlphaBotP
         )}
 
         {messages.map((msg, idx) => (
-          <MessageBubble key={idx} message={msg} />
+          <MessageBubble key={idx} message={msg} pair={pair} />
         ))}
 
         {isLoading && <TypingIndicator />}
@@ -226,27 +227,53 @@ export default function AlphaBotPanel({ pair, signal, onSendMessage }: AlphaBotP
   );
 }
 
-function MessageBubble({ message }: { message: { role: string; content: string } }) {
+function MessageBubble({ message, pair }: { message: { role: string; content: string }, pair: string }) {
   const isUser = message.role === 'user';
+
+  // Parse chart commands from message content
+  const chartRegex = /\[CHART:([^\]]+)\]/g;
+  const charts: string[] = [];
+  let textContent = message.content;
+  
+  // Extract chart commands
+  let match;
+  while ((match = chartRegex.exec(message.content)) !== null) {
+    charts.push(match[0]);
+    // Remove chart command from text
+    textContent = textContent.replace(match[0], '').trim();
+  }
 
   return (
     <div style={{
       display: 'flex',
-      justifyContent: isUser ? 'flex-end' : 'flex-start',
+      flexDirection: 'column',
+      alignItems: isUser ? 'flex-end' : 'flex-start',
     }}>
-      <div style={{
-        background: isUser ? 'var(--amber)20' : 'var(--bg3)',
-        border: `1px solid ${isUser ? 'var(--amber)40' : 'var(--border)'}`,
-        color: 'var(--text)',
-        padding: '12px 16px',
-        borderRadius: 8,
-        maxWidth: '75%',
-        fontSize: 13,
-        lineHeight: 1.6,
-        whiteSpace: 'pre-wrap',
-      }}>
-        {message.content}
-      </div>
+      {/* Text bubble */}
+      {textContent && (
+        <div style={{
+          background: isUser ? 'var(--amber)20' : 'var(--bg3)',
+          border: `1px solid ${isUser ? 'var(--amber)40' : 'var(--border)'}`,
+          color: 'var(--text)',
+          padding: '12px 16px',
+          borderRadius: 8,
+          maxWidth: '75%',
+          fontSize: 13,
+          lineHeight: 1.6,
+          whiteSpace: 'pre-wrap',
+        }}>
+          {textContent}
+        </div>
+      )}
+      
+      {/* Render charts */}
+      {!isUser && charts.length > 0 && (
+        <div style={{ width: '100%', maxWidth: '75%' }}>
+          {charts.map((chartCommand, idx) => (
+            <ChartRenderer key={idx} chartCommand={chartCommand} pair={pair} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

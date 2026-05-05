@@ -15,7 +15,8 @@
     "@fontsource/ibm-plex-sans": "^5.1.0",
     "@tailwindcss/postcss": "^4.2.4",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react-dom": "^19.2.5",
+    "recharts": "^2.15.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -23,7 +23,7 @@ if env_path.exists():
     load_dotenv(env_path)
     logger.info(f"✓ Loaded .env: GROQ_API_KEY={'SET' if os.getenv('GROQ_API_KEY') else 'NOT SET'}, FRED_API_KEY={'SET' if os.getenv('FRED_API_KEY') else 'NOT SET'}")
 
-from app.api import health, signals, websocket, prices, calendar, news, alphabot
+from app.api import health, signals, websocket, prices, calendar, news, alphabot, charts
 from app.config import settings
 from app.services import agent_service, signal_store, news_service
 from app.services.change_detector import change_detector
@@ -146,6 +146,7 @@ app.include_router(prices.router, prefix="/api", tags=["prices"])
 app.include_router(calendar.router, prefix="/api", tags=["calendar"])
 app.include_router(news.router, prefix="/api", tags=["news"])
 app.include_router(alphabot.router, prefix="/api", tags=["alphabot"])
+app.include_router(charts.router, prefix="/api", tags=["charts"])
 app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
 
 
