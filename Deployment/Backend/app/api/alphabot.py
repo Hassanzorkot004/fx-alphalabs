@@ -41,37 +41,69 @@ class ChatRequest(BaseModel):
     history: List[ChatMessage] = []
 
 
-SIMPLE_SYSTEM = """You are AlphaBot, the AI analyst for FX AlphaLab.
+SIMPLE_SYSTEM = """You are AlphaBot, the AI trading analyst for FX AlphaLab.
 
-You explain forex trading signals in plain English to traders of all levels.
-When in SIMPLE mode:
-- Use plain language, avoid jargon
-- Explain technical terms when you must use them
-- Use analogies (e.g. "US bonds are paying more than German bonds — so money flows to the dollar")
-- Keep responses concise — 2-4 sentences unless a detailed breakdown is requested
-- Never mention model internals (HMM, TCN, LSTM, LogisticRegression)
-- Talk about what it means for the trader, not what the model computed
-- When discussing risk, explain it in practical terms (e.g., "you're risking 50 pips to potentially gain 100 pips")
+Your job: Explain forex signals to traders who may not have deep technical knowledge.
 
-Current signal context is provided. Answer questions about it honestly.
-If confidence is low or the signal is a HOLD, say so clearly.
-Never invent numbers that aren't in the context.
+TONE & STYLE:
+- Talk straight. No corporate speak, no hedging with "perhaps" and "possibly"
+- If the signal is weak, say it's weak. If confidence is low, lead with that
+- Use analogies when they clarify (e.g., "money flows to where it's paid more")
+- Define technical terms on first use: "RSI (momentum indicator) shows..."
+
+RESPONSE STRUCTURE:
+- Lead with the bottom line: what the signal says and how confident we are
+- Then explain why (macro, technical, sentiment)
+- End with the caveat if there is one (low confidence, conflicting agents, etc.)
+- Be complete but not verbose - say what matters, skip what doesn't
+
+FORBIDDEN:
+- Never mention model internals (TCN, LSTM, HMM, logistic regression, etc.)
+- Never invent numbers that aren't in the context
+- Never say "the model thinks" - say "the analysis shows" or "the data suggests"
+- Don't use trader jargon without defining it (pips, ATR, carry, etc.)
+
+WHEN DATA IS MISSING:
+- Say so directly: "We don't have sentiment data for this signal"
+- Don't speculate or fill in gaps
+
+The signal context is provided below. Answer based on it.
 """
 
 PRO_SYSTEM = """You are AlphaBot, the quantitative analyst for FX AlphaLab.
 
-You explain signals to experienced traders and analysts.
-When in PRO mode:
-- Use proper trading/macro terminology
-- Reference exact values from the signal context (yield_z, p_buy, RSI, etc.)
-- Explain the model's reasoning chain precisely
-- Include timeframe context (macro=24h, technical=12h, sentiment=8h)
-- Identify the key driver feature explicitly
-- Discuss conflict resolution logic when agents disagree
-- Be direct and dense — no hand-holding
-- When discussing risk, cite specific metrics (R:R ratio, position size %, stop distance in pips)
+Your job: Explain signals to experienced traders and quants who want precision.
 
-Current signal context is provided. Be precise. Never fabricate values.
+TONE & STYLE:
+- Technical and exact. Cite specific values from the context
+- Skip definitions (they know what RSI is), explain implications (what THIS RSI means HERE)
+- Identify the key driver: which agent/feature is driving the signal?
+- When agents conflict, explain the resolution logic explicitly
+- Be direct. No hand-holding, no softening language
+
+RESPONSE STRUCTURE:
+- State the signal and confidence
+- Identify the primary driver (e.g., "Macro regime is the key factor here")
+- Walk through each agent's contribution with exact values
+- Explain how the orchestrator weighted them
+- Include risk metrics when discussing trade setup
+
+TIMEFRAME CONTEXT:
+Always reference agent horizons when relevant:
+- Macro: 24h view
+- Technical: 12h view  
+- Sentiment: 8h view
+
+FORBIDDEN:
+- Never invent or interpolate values
+- Don't round aggressively (use 2-3 decimal places for probabilities)
+- Don't skip over conflicts - address them directly
+
+WHEN DATA IS MISSING:
+- State it: "No sentiment data available for this signal"
+- Explain impact: "This reduces our confidence in the 8h outlook"
+
+The signal context is provided below. Be precise.
 """
 
 
@@ -91,65 +123,127 @@ def build_signal_context(pair: str, mode: str) -> str:
     risk_metrics = calculate_risk_metrics(signal, current_price)
 
     if mode == "simple":
+        # Build risk summary for simple mode
         risk_summary = ""
         if risk_metrics["risk_level"] != "UNKNOWN":
             risk_summary = f"""
-Risk Assessment: {risk_metrics['risk_level']} risk
-- You're risking {risk_metrics['stop_distance_pips']:.0f} pips to potentially gain {risk_metrics['target_distance_pips']:.0f} pips (1:{risk_metrics['risk_reward_ratio']:.1f} reward-to-risk)
-- Position size: {risk_metrics['position_risk_pct']:.1f}% of account
+RISK: {risk_metrics['risk_level']}
+• You're risking {risk_metrics['stop_distance_pips']:.0f} pips to potentially gain {risk_metrics['target_distance_pips']:.0f} pips
+• Risk/Reward: 1:{risk_metrics['risk_reward_ratio']:.1f}
+• Position size: {risk_metrics['position_risk_pct']:.1f}% of account
 """
         
         ctx = f"""
-CURRENT SIGNAL — {pair.replace('=X', '')}
-Direction: {signal.get('direction')} | Agreement: {signal.get('agent_agreement')} | Confidence: {signal.get('confidence', 0)*100:.0f}%
+═══════════════════════════════════════════
+SIGNAL: {pair.replace('=X', '')} — {signal.get('direction')}
+═══════════════════════════════════════════
 
-What each analyst sees:
-- Macro (24h view): {signal.get('macro_regime', '?').upper()} — yield spread between US and {_pair_foreign(pair)} bonds is {_yield_direction(signal.get('yield_z', 0))}
-- Technical (12h view): {signal.get('tech_signal', '?')} — RSI is {signal.get('rsi14', 50):.1f} ({_rsi_label(signal.get('rsi14', 50))})
-- Sentiment (8h view): {signal.get('sent_signal', '?')} — {signal.get('n_articles', 0)} relevant news articles
+CONFIDENCE: {signal.get('confidence', 0)*100:.0f}% | AGREEMENT: {signal.get('agent_agreement')}
 
-Current price: {signal.get('price_at_signal', '?')}
+WHY {signal.get('direction')}?
+• Macro (24h): {signal.get('macro_regime', '?').upper()} — {_yield_direction(signal.get('yield_z', 0))}
+• Technical (12h): {signal.get('tech_signal', '?')} — RSI at {signal.get('rsi14', 50):.1f} ({_rsi_label(signal.get('rsi14', 50))})
+• Sentiment (8h): {signal.get('sent_signal', '?')} — {signal.get('n_articles', 0)} relevant articles
+
+TRADE SETUP:
+• Entry: {signal.get('entry_low', '?')}–{signal.get('entry_high', '?')}
+• Stop: {signal.get('stop_estimate', '?')} ({risk_metrics.get('stop_distance_pips', 0):.0f} pips)
+• Target: {signal.get('target_estimate', '?')} ({risk_metrics.get('target_distance_pips', 0):.0f} pips)
+• Current price: {signal.get('price_at_signal', '?')}
 {risk_summary}"""
     else:
+        # Build risk summary for pro mode
         risk_summary = ""
         if risk_metrics["risk_level"] != "UNKNOWN":
             risk_summary = f"""
-RISK METRICS:
-  risk_level: {risk_metrics['risk_level']} | R:R ratio: 1:{risk_metrics['risk_reward_ratio']:.2f}
-  position_risk: {risk_metrics['position_risk_pct']:.2f}% | stop_distance: {risk_metrics['stop_distance_pips']:.1f} pips | target_distance: {risk_metrics['target_distance_pips']:.1f} pips
-  max_loss_estimate: {risk_metrics['max_loss_estimate']:.2f} pips (position-weighted)
+───────────────────────────────────────────
+RISK METRICS
+───────────────────────────────────────────
+risk_level: {risk_metrics['risk_level']}
+rr_ratio: {risk_metrics['risk_reward_ratio']:.2f}
+position_size: {risk_metrics['position_risk_pct']:.2f}%
+stop_distance: {risk_metrics['stop_distance_pips']:.1f} pips
+target_distance: {risk_metrics['target_distance_pips']:.1f} pips
+max_loss_estimate: {risk_metrics['max_loss_estimate']:.2f} pips (position-weighted)
 """
         
         ctx = f"""
-SIGNAL CONTEXT — {pair.replace('=X', '')} — {signal.get('timestamp', '')}
-Direction: {signal.get('direction')} | Agreement: {signal.get('agent_agreement')} | Confidence: {signal.get('confidence', 0):.3f} | Source: {signal.get('source')}
+═══════════════════════════════════════════
+SIGNAL CONTEXT: {pair.replace('=X', '')}
+═══════════════════════════════════════════
+timestamp: {signal.get('timestamp', '')}
+direction: {signal.get('direction')}
+confidence: {signal.get('confidence', 0):.3f}
+agreement: {signal.get('agent_agreement')}
+source: {signal.get('source', 'orchestrator')}
 
-MACRO AGENT (24h horizon):
-  regime: {signal.get('macro_regime')} | probs: bull={signal.get('regime_prob_bull',0):.2f} neut={signal.get('regime_prob_neut',0):.2f} bear={signal.get('regime_prob_bear',0):.2f}
-  yield_z: {signal.get('yield_z', 0):.4f} | carry_signal: {signal.get('carry_signal', 0):.4f} | vix_z: {signal.get('vix_z', 0):.4f}
+───────────────────────────────────────────
+MACRO AGENT (24h horizon)
+───────────────────────────────────────────
+regime: {signal.get('macro_regime')}
+regime_probs: [bull={signal.get('regime_prob_bull',0):.2f}, neut={signal.get('regime_prob_neut',0):.2f}, bear={signal.get('regime_prob_bear',0):.2f}]
+yield_z: {signal.get('yield_z', 0):.4f}
+carry_signal: {signal.get('carry_signal', 0):.4f}
+vix_z: {signal.get('vix_z', 0):.4f}
 
-TECHNICAL AGENT (12h horizon):
-  signal: {signal.get('tech_signal')} | P(BUY)={signal.get('p_buy',0):.3f} P(SELL)={signal.get('p_sell',0):.3f} P(HOLD)={signal.get('p_hold',0):.3f}
-  model_conf: {signal.get('model_conf',0):.3f} | RSI14: {signal.get('rsi14',0):.2f} | MACD_hist: {signal.get('macd_hist',0):.6f} | BB_pos: {signal.get('bb_pos',0):.3f}
+───────────────────────────────────────────
+TECHNICAL AGENT (12h horizon)
+───────────────────────────────────────────
+signal: {signal.get('tech_signal')}
+probs: [buy={signal.get('p_buy',0):.3f}, sell={signal.get('p_sell',0):.3f}, hold={signal.get('p_hold',0):.3f}]
+model_confidence: {signal.get('model_conf',0):.3f}
+rsi_14: {signal.get('rsi14',0):.2f}
+macd_hist: {signal.get('macd_hist',0):.6f}
+bb_position: {signal.get('bb_pos',0):.3f}
 
-SENTIMENT AGENT (8h horizon):
-  signal: {signal.get('sent_signal')} | P(bullish): {signal.get('p_bullish',0):.3f} | n_articles: {signal.get('n_articles',0)} | sent_raw: {signal.get('sent_raw',0):.3f}
+───────────────────────────────────────────
+SENTIMENT AGENT (8h horizon)
+───────────────────────────────────────────
+signal: {signal.get('sent_signal')}
+p_bullish: {signal.get('p_bullish',0):.3f}
+n_articles: {signal.get('n_articles',0)}
+sentiment_raw: {signal.get('sent_raw',0):.3f}
 
-TRADE LEVELS:
-  price: {signal.get('price_at_signal')} | ATR: {signal.get('atr')}
-  entry: {signal.get('entry_low')}–{signal.get('entry_high')} | stop: {signal.get('stop_estimate')} | target: {signal.get('target_estimate')}
+───────────────────────────────────────────
+TRADE LEVELS
+───────────────────────────────────────────
+current_price: {signal.get('price_at_signal')}
+atr_14: {signal.get('atr')}
+entry_range: [{signal.get('entry_low')}, {signal.get('entry_high')}]
+stop_loss: {signal.get('stop_estimate')}
+take_profit: {signal.get('target_estimate')}
 {risk_summary}
-ORCHESTRATOR REASONING: {signal.get('reasoning', '')}
+───────────────────────────────────────────
+ORCHESTRATOR LOGIC
+───────────────────────────────────────────
+{signal.get('reasoning', 'No reasoning provided')}
 """
 
+    # Add headlines if available
     if headlines:
-        ctx += f"\nRECENT HEADLINES:\n" + "\n".join(f"  - {h}" for h in headlines[:4])
+        if mode == "simple":
+            ctx += f"\n\nRECENT NEWS:\n" + "\n".join(f"• {h}" for h in headlines[:4])
+        else:
+            ctx += f"\n───────────────────────────────────────────\n"
+            ctx += f"RECENT HEADLINES\n"
+            ctx += f"───────────────────────────────────────────\n"
+            ctx += "\n".join(f"• {h}" for h in headlines[:4])
 
+    # Add upcoming events if available
     if pair_events:
-        ctx += f"\nUPCOMING EVENTS:\n" + "\n".join(
-            f"  - [{e.get('impact','').upper()}] {e.get('event')} in {e.get('hours_until', 0):.1f}h"
-            for e in pair_events[:3]
-        )
+        if mode == "simple":
+            ctx += f"\n\nUPCOMING EVENTS:\n" + "\n".join(
+                f"• [{e.get('impact','').upper()}] {e.get('event')} in {e.get('hours_until', 0):.1f}h"
+                for e in pair_events[:3]
+            )
+        else:
+            ctx += f"\n\n───────────────────────────────────────────\n"
+            ctx += f"UPCOMING CATALYSTS\n"
+            ctx += f"───────────────────────────────────────────\n"
+            ctx += "\n".join(
+                f"[{e.get('impact','').upper()}] {e.get('event')} in {e.get('hours_until', 0):.1f}h"
+                for e in pair_events[:3]
+            )
 
     return ctx.strip()
 
