@@ -23,7 +23,7 @@ class ChartService:
         Get OHLC price data with signal overlays.
         
         Args:
-            pair: e.g., "EURUSD"
+            pair: e.g., "EURUSD" (will add =X suffix automatically)
             period: "1h", "4h", "24h", "7d"
         
         Returns:
@@ -46,27 +46,47 @@ class ChartService:
             }
             yf_period, yf_interval = period_map.get(period, ("5d", "1h"))
             
+            # Add =X suffix if not present
+            ticker = f"{pair}=X" if not pair.endswith("=X") else pair
+            
             # Download data
-            ticker = f"{pair}=X"
             data = yf.download(ticker, period=yf_period, interval=yf_interval, progress=False, auto_adjust=True)
             
             if data.empty:
+                logger.warning(f"No data returned from yfinance for {ticker}")
                 return {"error": f"No data available for {pair}"}
             
-            # Format candles
-            candles = []
-            for idx, row in data.iterrows():
-                candles.append({
-                    "time": idx.isoformat(),
-                    "open": round(float(row["Open"]), 5),
-                    "high": round(float(row["High"]), 5),
-                    "low": round(float(row["Low"]), 5),
-                    "close": round(float(row["Close"]), 5),
-                    "volume": int(row["Volume"]) if "Volume" in row else 0,
-                })
+            # Flatten MultiIndex columns if present (yfinance returns MultiIndex for single ticker sometimes)
+            if isinstance(data.columns, pd.MultiIndex):
+                data.columns = data.columns.get_level_values(0)
             
-            # Get signal levels
-            signal = signal_store.get_latest_for_pair(pair)
+            logger.info(f"Downloaded {len(data)} candles for {ticker}")
+            
+            # Format candles - use iloc for safer row access
+            candles = []
+            for idx in range(len(data)):
+                try:
+                    row = data.iloc[idx]
+                    candle = {
+                        "time": data.index[idx].isoformat(),
+                        "open": round(float(row["Open"]), 5),
+                        "high": round(float(row["High"]), 5),
+                        "low": round(float(row["Low"]), 5),
+                        "close": round(float(row["Close"]), 5),
+                        "volume": int(row["Volume"]) if "Volume" in data.columns and not pd.isna(row["Volume"]) else 0,
+                    }
+                    candles.append(candle)
+                except (KeyError, ValueError, TypeError, IndexError) as e:
+                    logger.warning(f"Skipping candle at index {idx}: {e}")
+                    continue
+            
+            if not candles:
+                logger.error(f"No valid candles extracted from {len(data)} rows")
+                return {"error": "Failed to parse candle data"}
+            
+            # Get signal levels (use pair without =X for signal store lookup)
+            clean_pair = pair.replace("=X", "")
+            signal = signal_store.get_latest_for_pair(clean_pair)
             signal_levels = None
             if signal:
                 signal_levels = {
@@ -79,7 +99,7 @@ class ChartService:
             
             return {
                 "type": "price",
-                "pair": pair,
+                "pair": clean_pair,
                 "timeframe": period,
                 "candles": candles,
                 "signal_levels": signal_levels,
@@ -95,7 +115,7 @@ class ChartService:
         Get technical indicator data.
         
         Args:
-            pair: e.g., "EURUSD"
+            pair: e.g., "EURUSD" (will add =X suffix automatically)
             indicator: "rsi", "macd", "bb" (Bollinger Bands)
             period: "1h", "4h", "24h", "7d"
         
@@ -119,33 +139,54 @@ class ChartService:
             }
             yf_period, yf_interval = period_map.get(period, ("5d", "1h"))
             
-            ticker = f"{pair}=X"
+            # Add =X suffix if not present
+            ticker = f"{pair}=X" if not pair.endswith("=X") else pair
+            clean_pair = pair.replace("=X", "")
+            
             data = yf.download(ticker, period=yf_period, interval=yf_interval, progress=False, auto_adjust=True)
             
             if data.empty:
                 return {"error": f"No data available for {pair}"}
             
-            close = data["Close"].values
-            high = data["High"].values
-            low = data["Low"].values
-            timestamps = [idx.isoformat() for idx in data.index]
+            # Flatten MultiIndex columns if present
+            if isinstance(data.columns, pd.MultiIndex):
+                data.columns = data.columns.get_level_values(0)
+            
+            # Check minimum data requirements
+            min_required = 50  # Need at least 50 candles for indicators
+            if len(data) < min_required:
+                logger.warning(f"Insufficient data for {pair}: {len(data)} candles (need {min_required})")
+                return {"error": f"Insufficient data: {len(data)} candles (need {min_required})"}
+            
+            # Extract arrays safely
+            try:
+                close = data["Close"].values if isinstance(data["Close"], pd.Series) else np.array(data["Close"])
+                high = data["High"].values if isinstance(data["High"], pd.Series) else np.array(data["High"])
+                low = data["Low"].values if isinstance(data["Low"], pd.Series) else np.array(data["Low"])
+                timestamps = [idx.isoformat() for idx in data.index]
+            except Exception as e:
+                logger.error(f"Failed to extract price data: {e}")
+                return {"error": f"Failed to parse price data: {str(e)}"}
             
             if indicator == "rsi":
                 rsi_values = self._calculate_rsi(close, period=14)
                 chart_data = [
                     {"time": t, "rsi": round(float(v), 2)}
                     for t, v in zip(timestamps, rsi_values)
-                    if not np.isnan(v)
+                    if not np.isnan(v) and v > 0
                 ]
                 
+                if not chart_data:
+                    return {"error": "Failed to calculate RSI values"}
+                
                 # Get current RSI from signal
-                signal = signal_store.get_latest_for_pair(pair)
+                signal = signal_store.get_latest_for_pair(clean_pair)
                 current_rsi = signal.get("rsi14") if signal else None
                 
                 return {
                     "type": "indicator",
                     "indicator": "rsi",
-                    "pair": pair,
+                    "pair": clean_pair,
                     "timeframe": period,
                     "data": chart_data,
                     "levels": {"oversold": 30, "overbought": 70},
@@ -162,13 +203,16 @@ class ChartService:
                         "histogram": round(float(h), 6),
                     }
                     for t, m, s, h in zip(timestamps, macd_line, signal_line, histogram)
-                    if not np.isnan(m)
+                    if not np.isnan(m) and not np.isnan(s)
                 ]
+                
+                if not chart_data:
+                    return {"error": "Failed to calculate MACD values"}
                 
                 return {
                     "type": "indicator",
                     "indicator": "macd",
-                    "pair": pair,
+                    "pair": clean_pair,
                     "timeframe": period,
                     "data": chart_data,
                     "levels": {"zero": 0},
@@ -188,10 +232,13 @@ class ChartService:
                     if not np.isnan(m)
                 ]
                 
+                if not chart_data:
+                    return {"error": "Failed to calculate Bollinger Bands"}
+                
                 return {
                     "type": "indicator",
                     "indicator": "bollinger_bands",
-                    "pair": pair,
+                    "pair": clean_pair,
                     "timeframe": period,
                     "data": chart_data,
                 }
@@ -314,22 +361,28 @@ class ChartService:
     
     def _calculate_rsi(self, prices: np.ndarray, period: int = 14) -> np.ndarray:
         """Calculate RSI indicator"""
+        if len(prices) < period + 1:
+            logger.warning(f"Insufficient data for RSI: {len(prices)} prices (need {period + 1})")
+            return np.full_like(prices, np.nan)
+        
         deltas = np.diff(prices)
         gains = np.where(deltas > 0, deltas, 0)
         losses = np.where(deltas < 0, -deltas, 0)
         
-        avg_gain = np.zeros_like(prices)
-        avg_loss = np.zeros_like(prices)
+        avg_gain = np.zeros(len(prices))
+        avg_loss = np.zeros(len(prices))
         
-        # Initial averages
-        avg_gain[period] = np.mean(gains[:period])
-        avg_loss[period] = np.mean(losses[:period])
+        # Initial averages (need at least 'period' deltas)
+        if len(gains) >= period:
+            avg_gain[period] = np.mean(gains[:period])
+            avg_loss[period] = np.mean(losses[:period])
         
         # Smoothed averages
         for i in range(period + 1, len(prices)):
             avg_gain[i] = (avg_gain[i-1] * (period - 1) + gains[i-1]) / period
             avg_loss[i] = (avg_loss[i-1] * (period - 1) + losses[i-1]) / period
         
+        # Calculate RS and RSI
         rs = np.divide(avg_gain, avg_loss, out=np.zeros_like(avg_gain), where=avg_loss!=0)
         rsi = 100 - (100 / (1 + rs))
         
@@ -337,6 +390,10 @@ class ChartService:
     
     def _calculate_macd(self, prices: np.ndarray, fast: int = 12, slow: int = 26, signal: int = 9):
         """Calculate MACD indicator"""
+        if len(prices) < slow + signal:
+            logger.warning(f"Insufficient data for MACD: {len(prices)} prices (need {slow + signal})")
+            return np.full_like(prices, np.nan), np.full_like(prices, np.nan), np.full_like(prices, np.nan)
+        
         ema_fast = self._ema(prices, fast)
         ema_slow = self._ema(prices, slow)
         macd_line = ema_fast - ema_slow
@@ -347,8 +404,13 @@ class ChartService:
     
     def _calculate_bollinger_bands(self, prices: np.ndarray, period: int = 20, std_dev: float = 2.0):
         """Calculate Bollinger Bands"""
+        if len(prices) < period:
+            logger.warning(f"Insufficient data for Bollinger Bands: {len(prices)} prices (need {period})")
+            return np.full_like(prices, np.nan), np.full_like(prices, np.nan), np.full_like(prices, np.nan)
+        
         middle = self._sma(prices, period)
-        std = np.zeros_like(prices)
+        std = np.zeros_like(prices, dtype=float)
+        std[:period-1] = np.nan
         
         for i in range(period - 1, len(prices)):
             std[i] = np.std(prices[i - period + 1:i + 1])
@@ -360,18 +422,48 @@ class ChartService:
     
     def _ema(self, prices: np.ndarray, period: int) -> np.ndarray:
         """Calculate Exponential Moving Average"""
-        ema = np.zeros_like(prices)
-        ema[period - 1] = np.mean(prices[:period])
+        if len(prices) < period:
+            logger.warning(f"Insufficient data for EMA: {len(prices)} prices (need {period})")
+            return np.full_like(prices, np.nan)
+        
+        ema = np.zeros_like(prices, dtype=float)
+        ema[:] = np.nan  # Initialize all as NaN
+        
+        # Find first valid index (skip leading NaNs)
+        valid_indices = np.where(~np.isnan(prices))[0]
+        if len(valid_indices) < period:
+            logger.warning(f"Insufficient valid data for EMA: {len(valid_indices)} valid prices (need {period})")
+            return ema
+        
+        first_valid = valid_indices[0]
+        
+        # Need 'period' valid values to start
+        if first_valid + period > len(prices):
+            logger.warning(f"Not enough data after first valid index for EMA")
+            return ema
+        
+        # Calculate initial EMA from first 'period' valid values
+        start_idx = first_valid + period - 1
+        ema[start_idx] = np.mean(prices[first_valid:first_valid + period])
         multiplier = 2 / (period + 1)
         
-        for i in range(period, len(prices)):
-            ema[i] = (prices[i] - ema[i-1]) * multiplier + ema[i-1]
+        # Calculate EMA for remaining values
+        for i in range(start_idx + 1, len(prices)):
+            if not np.isnan(prices[i]):
+                ema[i] = (prices[i] - ema[i-1]) * multiplier + ema[i-1]
+            else:
+                ema[i] = ema[i-1]  # Carry forward previous EMA if current price is NaN
         
         return ema
     
     def _sma(self, prices: np.ndarray, period: int) -> np.ndarray:
         """Calculate Simple Moving Average"""
-        sma = np.zeros_like(prices)
+        if len(prices) < period:
+            logger.warning(f"Insufficient data for SMA: {len(prices)} prices (need {period})")
+            return np.full_like(prices, np.nan)
+        
+        sma = np.zeros_like(prices, dtype=float)
+        sma[:period-1] = np.nan  # First values are NaN
         
         for i in range(period - 1, len(prices)):
             sma[i] = np.mean(prices[i - period + 1:i + 1])

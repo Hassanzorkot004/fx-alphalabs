@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import PriceChart from './PriceChart';
 import RSIChart from './RSIChart';
+import MACDChart from './MACDChart';
+import BollingerBandsChart from './BollingerBandsChart';
 import RiskChart from './RiskChart';
+import AgentConfidenceChart from './AgentConfidenceChart';
 import { API_BASE_URL } from '../../config/constants';
 
 interface ChartRendererProps {
@@ -99,10 +102,19 @@ export default function ChartRenderer({ chartCommand, pair }: ChartRendererProps
   // Render appropriate chart based on type
   if (chartData.type === 'price') {
     return <PriceChart data={chartData} />;
-  } else if (chartData.type === 'indicator' && chartData.indicator === 'rsi') {
-    return <RSIChart data={chartData} />;
+  } else if (chartData.type === 'indicator') {
+    // Handle different indicator types
+    if (chartData.indicator === 'rsi') {
+      return <RSIChart data={chartData} />;
+    } else if (chartData.indicator === 'macd') {
+      return <MACDChart data={chartData} />;
+    } else if (chartData.indicator === 'bollinger_bands') {
+      return <BollingerBandsChart data={chartData} />;
+    }
   } else if (chartData.type === 'risk') {
     return <RiskChart data={chartData} />;
+  } else if (chartData.type === 'agent_confidence') {
+    return <AgentConfidenceChart data={chartData} />;
   }
 
   // Fallback for unsupported chart types
@@ -115,7 +127,7 @@ export default function ChartRenderer({ chartCommand, pair }: ChartRendererProps
       marginTop: 12,
     }}>
       <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-        Chart type not yet implemented: {chartData.type}
+        Chart type not yet implemented: {chartData.type} {chartData.indicator ? `(${chartData.indicator})` : ''}
       </div>
     </div>
   );
