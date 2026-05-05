@@ -5,6 +5,8 @@ import MACDChart from './MACDChart';
 import BollingerBandsChart from './BollingerBandsChart';
 import RiskChart from './RiskChart';
 import AgentConfidenceChart from './AgentConfidenceChart';
+import CorrelationHeatmap from './CorrelationHeatmap';
+import VolatilityChart from './VolatilityChart';
 import { API_BASE_URL } from '../../config/constants';
 
 interface ChartRendererProps {
@@ -41,6 +43,11 @@ export default function ChartRenderer({ chartCommand, pair }: ChartRendererProps
         url = `${API_BASE_URL}/api/charts/risk/${pair}`;
       } else if (chartType === 'agents') {
         url = `${API_BASE_URL}/api/charts/agents/${pair}`;
+      } else if (chartType === 'correlation') {
+        // Correlation doesn't need a specific pair, uses all pairs
+        url = `${API_BASE_URL}/api/charts/correlation?period=${period}`;
+      } else if (chartType === 'volatility' || chartType === 'atr') {
+        url = `${API_BASE_URL}/api/charts/volatility/${pair}?period=${period}`;
       } else {
         setError(`Unknown chart type: ${chartType}`);
         setLoading(false);
@@ -115,6 +122,10 @@ export default function ChartRenderer({ chartCommand, pair }: ChartRendererProps
     return <RiskChart data={chartData} />;
   } else if (chartData.type === 'agent_confidence') {
     return <AgentConfidenceChart data={chartData} />;
+  } else if (chartData.type === 'correlation_heatmap') {
+    return <CorrelationHeatmap data={chartData} />;
+  } else if (chartData.type === 'volatility') {
+    return <VolatilityChart data={chartData} />;
   }
 
   // Fallback for unsupported chart types

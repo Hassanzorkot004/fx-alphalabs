@@ -94,3 +94,50 @@ async def get_risk_visualization(pair: str):
         raise HTTPException(status_code=404, detail=result["error"])
     
     return result
+
+
+@router.get("/charts/correlation")
+async def get_correlation_heatmap(
+    pairs: str = Query(None, description="Comma-separated pairs (e.g., 'EURUSD,GBPUSD,USDJPY')"),
+    period: str = Query("24h", regex="^(1h|4h|24h|7d)$")
+):
+    """
+    Get correlation heatmap between currency pairs.
+    
+    Args:
+        pairs: Comma-separated list of pairs (optional, defaults to EURUSD,GBPUSD,USDJPY)
+        period: Time period - "1h", "4h", "24h", or "7d"
+    
+    Returns:
+        Correlation matrix data
+    """
+    pairs_list = pairs.split(",") if pairs else None
+    result = chart_service.get_correlation_heatmap(pairs_list, period)
+    
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    
+    return result
+
+
+@router.get("/charts/volatility/{pair}")
+async def get_volatility_chart(
+    pair: str,
+    period: str = Query("24h", regex="^(1h|4h|24h|7d)$")
+):
+    """
+    Get ATR volatility chart for a currency pair.
+    
+    Args:
+        pair: Currency pair (e.g., "EURUSD")
+        period: Time period - "1h", "4h", "24h", or "7d"
+    
+    Returns:
+        ATR volatility data over time
+    """
+    result = chart_service.get_volatility_chart(pair, period)
+    
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    
+    return result

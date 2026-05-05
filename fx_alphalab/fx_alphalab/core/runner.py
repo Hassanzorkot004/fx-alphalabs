@@ -262,6 +262,8 @@ class AgentRunner:
             "timestamp", "pair", "direction", "confidence", "position_size",
             "macro_regime", "tech_signal", "sent_signal", "agent_agreement",
             "reasoning", "source",
+            # agent confidence values
+            "macro_conf", "tech_conf", "sent_conf",
             # enriched fields
             "price_at_signal", "atr", "entry_low", "entry_high",
             "stop_estimate", "target_estimate",

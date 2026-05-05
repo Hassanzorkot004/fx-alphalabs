@@ -1,15 +1,34 @@
 import { useState, useEffect } from 'react';
+import { notificationManager } from '../utils/notifications';
 
 interface Settings {
   watchlist: string[];
   defaultMode: 'simple' | 'pro';
   theme: 'dark';
+  notifications: {
+    enabled: boolean;
+    newSignals: boolean;
+    directionChanges: boolean;
+    highConfidence: boolean;
+    confidenceThreshold: number;
+    significantConfidenceChange: number;
+    agentDisagreement: boolean;
+  };
 }
 
 const DEFAULT_SETTINGS: Settings = {
   watchlist: ['EURUSD', 'GBPUSD', 'USDJPY'],
   defaultMode: 'simple',
   theme: 'dark',
+  notifications: {
+    enabled: false,
+    newSignals: true,
+    directionChanges: true,
+    highConfidence: true,
+    confidenceThreshold: 0.70,
+    significantConfidenceChange: 0.10,
+    agentDisagreement: true,
+  },
 };
 
 const AVAILABLE_PAIRS = ['EURUSD', 'GBPUSD', 'USDJPY'];
@@ -33,6 +52,7 @@ export default function SettingsPage() {
 
   const saveSettings = () => {
     localStorage.setItem('fx-alphalab-settings', JSON.stringify(settings));
+    notificationManager.setEnabled(settings.notifications.enabled);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -49,8 +69,19 @@ export default function SettingsPage() {
   const resetToDefaults = () => {
     setSettings(DEFAULT_SETTINGS);
     localStorage.removeItem('fx-alphalab-settings');
+    notificationManager.setEnabled(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const enableNotifications = async () => {
+    const permission = await notificationManager.requestPermission();
+    if (permission === 'granted') {
+      setSettings(prev => ({
+        ...prev,
+        notifications: { ...prev.notifications, enabled: true },
+      }));
+    }
   };
 
   return (
@@ -157,6 +188,177 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+        </Section>
+
+        {/* Notifications Section */}
+        <Section 
+          title="Notifications" 
+          description="Get alerted when important signal changes occur"
+        >
+          {!notificationManager.isSupported() ? (
+            <div style={{
+              padding: 16,
+              background: 'var(--red)10',
+              border: '1px solid var(--red)40',
+              borderRadius: 6,
+              color: 'var(--red)',
+              fontSize: 13,
+            }}>
+              ⚠️ Your browser doesn't support notifications
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Enable/Disable Toggle */}
+              <div style={{
+                padding: 16,
+                background: settings.notifications.enabled ? 'var(--green)10' : 'var(--bg3)',
+                border: `1px solid ${settings.notifications.enabled ? 'var(--green)40' : 'var(--border)'}`,
+                borderRadius: 6,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                      {settings.notifications.enabled ? '🔔 Notifications Enabled' : '🔕 Notifications Disabled'}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+                      {settings.notifications.enabled 
+                        ? 'You\'ll receive alerts for signal changes'
+                        : 'Enable to get real-time alerts'}
+                    </div>
+                  </div>
+                  {!settings.notifications.enabled && notificationManager.getPermission() !== 'granted' ? (
+                    <button
+                      onClick={enableNotifications}
+                      style={{
+                        background: 'var(--amber)',
+                        color: 'var(--bg)',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: 4,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Enable
+                    </button>
+                  ) : (
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={settings.notifications.enabled}
+                        onChange={(e) => setSettings(prev => ({
+                          ...prev,
+                          notifications: { ...prev.notifications, enabled: e.target.checked },
+                        }))}
+                        style={{
+                          width: 20,
+                          height: 20,
+                          cursor: 'pointer',
+                          accentColor: 'var(--amber)',
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+
+              {/* Notification Types */}
+              {settings.notifications.enabled && (
+                <div style={{
+                  padding: 16,
+                  background: 'var(--bg3)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: 'var(--text2)' }}>
+                    Alert Types
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <NotificationToggle
+                      label="New Signals"
+                      description="When a new signal is generated"
+                      checked={settings.notifications.newSignals}
+                      onChange={(checked) => setSettings(prev => ({
+                        ...prev,
+                        notifications: { ...prev.notifications, newSignals: checked },
+                      }))}
+                    />
+                    <NotificationToggle
+                      label="Direction Changes"
+                      description="When BUY/SELL direction flips"
+                      checked={settings.notifications.directionChanges}
+                      onChange={(checked) => setSettings(prev => ({
+                        ...prev,
+                        notifications: { ...prev.notifications, directionChanges: checked },
+                      }))}
+                    />
+                    <NotificationToggle
+                      label="High Confidence Signals"
+                      description={`When confidence exceeds ${(settings.notifications.confidenceThreshold * 100).toFixed(0)}%`}
+                      checked={settings.notifications.highConfidence}
+                      onChange={(checked) => setSettings(prev => ({
+                        ...prev,
+                        notifications: { ...prev.notifications, highConfidence: checked },
+                      }))}
+                    />
+                    <NotificationToggle
+                      label="Agent Disagreements"
+                      description="When agents conflict on direction"
+                      checked={settings.notifications.agentDisagreement}
+                      onChange={(checked) => setSettings(prev => ({
+                        ...prev,
+                        notifications: { ...prev.notifications, agentDisagreement: checked },
+                      }))}
+                    />
+                  </div>
+
+                  {/* Thresholds */}
+                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: 'var(--text2)' }}>
+                      Thresholds
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div>
+                        <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>
+                          High Confidence Threshold: {(settings.notifications.confidenceThreshold * 100).toFixed(0)}%
+                        </label>
+                        <input
+                          type="range"
+                          min="50"
+                          max="90"
+                          step="5"
+                          value={settings.notifications.confidenceThreshold * 100}
+                          onChange={(e) => setSettings(prev => ({
+                            ...prev,
+                            notifications: { ...prev.notifications, confidenceThreshold: parseInt(e.target.value) / 100 },
+                          }))}
+                          style={{ width: '100%', accentColor: 'var(--amber)' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>
+                          Significant Confidence Change: {(settings.notifications.significantConfidenceChange * 100).toFixed(0)}%
+                        </label>
+                        <input
+                          type="range"
+                          min="5"
+                          max="25"
+                          step="5"
+                          value={settings.notifications.significantConfidenceChange * 100}
+                          onChange={(e) => setSettings(prev => ({
+                            ...prev,
+                            notifications: { ...prev.notifications, significantConfidenceChange: parseInt(e.target.value) / 100 },
+                          }))}
+                          style={{ width: '100%', accentColor: 'var(--amber)' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </Section>
 
         {/* Actions */}
@@ -273,5 +475,44 @@ function ModeButton({ label, description, isSelected, onClick }: {
         {description}
       </div>
     </button>
+  );
+}
+
+function NotificationToggle({ label, description, checked, onChange }: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 10,
+      background: 'var(--bg4)',
+      borderRadius: 4,
+      cursor: 'pointer',
+    }}>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>
+          {label}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+          {description}
+        </div>
+      </div>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{
+          width: 18,
+          height: 18,
+          cursor: 'pointer',
+          accentColor: 'var(--amber)',
+        }}
+      />
+    </label>
   );
 }

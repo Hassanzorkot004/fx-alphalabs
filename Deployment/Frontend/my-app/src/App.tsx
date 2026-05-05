@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSignals } from './hooks/useSignals';
+import { useNotifications } from './hooks/useNotifications';
 import { useRef } from 'react';
 import type { NewsArticle, CalendarEvent } from './Types';
 import TickerStrip from './components/TickerStrip';
@@ -13,6 +14,9 @@ export default function App() {
   const { signals, history, calendar, news, prices, liveContexts, connected, lastUpdate, nextCycle } = useSignals();
   const [selectedPair, setSelectedPair] = useState<string | null>(null);
   const alphaBotSendRef = useRef<((msg: string) => Promise<void>) | null>(null);
+
+  // Enable notifications
+  useNotifications(signals);
 
   // Load watchlist from settings
   const getWatchlist = (): string[] => {

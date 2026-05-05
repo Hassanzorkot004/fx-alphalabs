@@ -8,6 +8,7 @@ import pandas as pd
 import yfinance as yf
 from loguru import logger
 
+from app.config import settings
 from app.services.signal_store import signal_store
 
 
@@ -17,6 +18,112 @@ class ChartService:
     def __init__(self):
         self._cache = {}
         self._cache_ttl = 300  # 5 minutes
+        self._correlation_cache = {}
+        self._correlation_cache_time = {}
+    
+    def get_correlation_heatmap(self, pairs: List[str] = None, period: str = "24h") -> Dict:
+        """
+        Calculate correlation matrix between currency pairs.
+        
+        Args:
+            pairs: List of pairs (e.g., ["EURUSD", "GBPUSD", "USDJPY"])
+            period: "1h", "4h", "24h", "7d"
+        
+        Returns:
+            {
+                "type": "correlation_heatmap",
+                "timeframe": str,
+                "pairs": [str],
+                "matrix": [[float]],  # correlation matrix
+                "timestamp": str
+            }
+        """
+        try:
+            # Default pairs
+            if pairs is None:
+                pairs = ["EURUSD", "GBPUSD", "USDJPY"]
+            
+            # Check cache
+            cache_key = f"{'-'.join(pairs)}_{period}"
+            now = datetime.now(timezone.utc)
+            if cache_key in self._correlation_cache_time:
+                cache_age = (now - self._correlation_cache_time[cache_key]).total_seconds()
+                if cache_age < self._cache_ttl:
+                    logger.info(f"Returning cached correlation data (age: {cache_age:.0f}s)")
+                    return self._correlation_cache[cache_key]
+            
+            # Map period to yfinance params
+            period_map = {
+                "1h": ("2d", "5m"),
+                "4h": ("7d", "15m"),
+                "24h": ("30d", "1h"),
+                "7d": ("90d", "1d"),
+            }
+            yf_period, yf_interval = period_map.get(period, ("30d", "1h"))
+            
+            # Download data for all pairs
+            price_data = {}
+            for pair in pairs:
+                ticker = f"{pair}=X" if not pair.endswith("=X") else pair
+                clean_pair = pair.replace("=X", "")
+                
+                data = yf.download(ticker, period=yf_period, interval=yf_interval, progress=False, auto_adjust=True)
+                
+                if data.empty:
+                    logger.warning(f"No data for {ticker}")
+                    continue
+                
+                # Flatten MultiIndex if present
+                if isinstance(data.columns, pd.MultiIndex):
+                    data.columns = data.columns.get_level_values(0)
+                
+                # Extract close prices
+                if "Close" in data.columns:
+                    price_data[clean_pair] = data["Close"].values
+                else:
+                    logger.warning(f"No Close column for {ticker}")
+            
+            if len(price_data) < 2:
+                return {"error": "Insufficient data to calculate correlations"}
+            
+            # Create DataFrame with aligned data
+            min_length = min(len(prices) for prices in price_data.values())
+            df = pd.DataFrame({
+                pair: prices[-min_length:] for pair, prices in price_data.items()
+            })
+            
+            # Calculate returns (percentage change)
+            returns = df.pct_change().dropna()
+            
+            if len(returns) < 10:
+                return {"error": "Insufficient data points for correlation"}
+            
+            # Calculate correlation matrix
+            corr_matrix = returns.corr()
+            
+            # Convert to list format
+            pairs_list = list(corr_matrix.columns)
+            matrix = corr_matrix.values.tolist()
+            
+            result = {
+                "type": "correlation_heatmap",
+                "timeframe": period,
+                "pairs": pairs_list,
+                "matrix": matrix,
+                "timestamp": now.isoformat(),
+                "data_points": len(returns),
+            }
+            
+            # Cache result
+            self._correlation_cache[cache_key] = result
+            self._correlation_cache_time[cache_key] = now
+            
+            logger.info(f"Calculated correlation matrix for {len(pairs_list)} pairs over {len(returns)} data points")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Correlation heatmap generation failed: {e}")
+            return {"error": str(e)}
     
     def get_price_chart(self, pair: str, period: str = "24h") -> Dict:
         """
@@ -250,61 +357,190 @@ class ChartService:
             logger.error(f"Indicator chart generation failed for {pair}/{indicator}: {e}")
             return {"error": str(e)}
     
-    def get_agent_confidence_chart(self, pair: str) -> Dict:
+    def get_agent_confidence_chart(self, pair: str, limit: int = 20) -> Dict:
         """
         Get agent confidence evolution over recent signals.
+        
+        Args:
+            pair: Currency pair (e.g., "EURUSD")
+            limit: Number of recent signals to include (default 20)
         
         Returns:
             {
                 "type": "agent_confidence",
                 "pair": str,
-                "data": [{"time": str, "macro": float, "technical": float, "sentiment": float, "overall": float}]
+                "data": [{"time": str, "overall_confidence": float, "macro_conf": float, 
+                         "tech_conf": float, "sent_conf": float, "direction": str, "agreement": str}]
             }
         """
         try:
-            # This would ideally come from a history of signals
-            # For now, we'll return the current signal's agent breakdown
-            signal = signal_store.get_latest_for_pair(pair)
+            # Load historical signals from CSV
+            if not settings.SIGNALS_CSV.exists():
+                logger.warning("No signals.csv found for historical data")
+                return {"error": "No historical data available"}
             
-            if not signal:
-                return {"error": f"No signal data for {pair}"}
+            df = pd.read_csv(settings.SIGNALS_CSV)
             
-            # Create a single data point (in production, you'd have historical data)
-            data_point = {
-                "time": signal.get("timestamp"),
-                "macro": {
-                    "regime": signal.get("macro_regime"),
-                    "bull_prob": signal.get("regime_prob_bull", 0),
-                    "neut_prob": signal.get("regime_prob_neut", 0),
-                    "bear_prob": signal.get("regime_prob_bear", 0),
-                },
-                "technical": {
-                    "signal": signal.get("tech_signal"),
-                    "p_buy": signal.get("p_buy", 0),
-                    "p_sell": signal.get("p_sell", 0),
-                    "p_hold": signal.get("p_hold", 0),
-                    "confidence": signal.get("model_conf", 0),
-                },
-                "sentiment": {
-                    "signal": signal.get("sent_signal"),
-                    "p_bullish": signal.get("p_bullish", 0),
-                    "n_articles": signal.get("n_articles", 0),
-                },
-                "overall": {
-                    "direction": signal.get("direction"),
-                    "confidence": signal.get("confidence", 0),
-                    "agreement": signal.get("agent_agreement"),
+            if df.empty:
+                return {"error": "No historical data available"}
+            
+            # Filter for this pair
+            clean_pair = pair.replace("=X", "")
+            pair_df = df[df["pair"].str.replace("=X", "") == clean_pair].copy()
+            
+            if pair_df.empty:
+                return {"error": f"No historical data for {pair}"}
+            
+            # Sort by timestamp descending and take most recent
+            if "timestamp" in pair_df.columns:
+                pair_df["timestamp"] = pd.to_datetime(pair_df["timestamp"], utc=True, errors="coerce")
+                pair_df = pair_df.sort_values("timestamp", ascending=False)
+            
+            # Take last N signals
+            pair_df = pair_df.head(limit)
+            
+            # Reverse to show oldest to newest
+            pair_df = pair_df.iloc[::-1]
+            
+            # Build data points
+            data_points = []
+            for _, row in pair_df.iterrows():
+                data_point = {
+                    "time": row.get("timestamp").isoformat() if pd.notna(row.get("timestamp")) else "",
+                    "overall_confidence": float(row.get("confidence", 0)),
+                    "macro_conf": float(row.get("macro_conf", 0)),
+                    "tech_conf": float(row.get("tech_conf", 0)),
+                    "sent_conf": float(row.get("sent_conf", 0)),
+                    "direction": str(row.get("direction", "HOLD")),
+                    "agreement": str(row.get("agent_agreement", "UNKNOWN")),
+                    # Additional agent details for tooltip/detail view
+                    "macro_regime": str(row.get("macro_regime", "")),
+                    "tech_signal": str(row.get("tech_signal", "")),
+                    "sent_signal": str(row.get("sent_signal", "")),
                 }
-            }
+                data_points.append(data_point)
+            
+            if not data_points:
+                return {"error": "No valid data points found"}
             
             return {
                 "type": "agent_confidence",
-                "pair": pair,
-                "data": [data_point],
+                "pair": clean_pair,
+                "data": data_points,
+                "count": len(data_points),
             }
             
         except Exception as e:
             logger.error(f"Agent confidence chart failed for {pair}: {e}")
+            return {"error": str(e)}
+    
+    def get_volatility_chart(self, pair: str, period: str = "24h") -> Dict:
+        """
+        Get ATR (Average True Range) volatility chart.
+        
+        Args:
+            pair: Currency pair (e.g., "EURUSD")
+            period: "1h", "4h", "24h", "7d"
+        
+        Returns:
+            {
+                "type": "volatility",
+                "pair": str,
+                "timeframe": str,
+                "data": [{"time": str, "atr": float, "high": float, "low": float, "close": float}],
+                "current_atr": float,
+                "avg_atr": float,
+                "volatility_state": str  # "low", "normal", "high", "extreme"
+            }
+        """
+        try:
+            # Map period to yfinance params
+            period_map = {
+                "1h": ("2d", "5m"),
+                "4h": ("7d", "15m"),
+                "24h": ("30d", "1h"),
+                "7d": ("90d", "1d"),
+            }
+            yf_period, yf_interval = period_map.get(period, ("30d", "1h"))
+            
+            # Add =X suffix if not present
+            ticker = f"{pair}=X" if not pair.endswith("=X") else pair
+            clean_pair = pair.replace("=X", "")
+            
+            # Download data
+            data = yf.download(ticker, period=yf_period, interval=yf_interval, progress=False, auto_adjust=True)
+            
+            if data.empty:
+                logger.warning(f"No data returned from yfinance for {ticker}")
+                return {"error": f"No data available for {pair}"}
+            
+            # Flatten MultiIndex columns if present
+            if isinstance(data.columns, pd.MultiIndex):
+                data.columns = data.columns.get_level_values(0)
+            
+            # Check minimum data requirements
+            min_required = 30  # Need at least 30 candles for ATR
+            if len(data) < min_required:
+                logger.warning(f"Insufficient data for {pair}: {len(data)} candles (need {min_required})")
+                return {"error": f"Insufficient data: {len(data)} candles (need {min_required})"}
+            
+            # Extract OHLC data
+            high = data["High"].values
+            low = data["Low"].values
+            close = data["Close"].values
+            timestamps = [idx.isoformat() for idx in data.index]
+            
+            # Calculate ATR (14 period)
+            atr_period = 14
+            atr_values = self._calculate_atr(high, low, close, period=atr_period)
+            
+            # Format chart data
+            chart_data = []
+            for i in range(len(timestamps)):
+                if not np.isnan(atr_values[i]) and atr_values[i] > 0:
+                    chart_data.append({
+                        "time": timestamps[i],
+                        "atr": round(float(atr_values[i]), 6),
+                        "high": round(float(high[i]), 5),
+                        "low": round(float(low[i]), 5),
+                        "close": round(float(close[i]), 5),
+                    })
+            
+            if not chart_data:
+                return {"error": "Failed to calculate ATR values"}
+            
+            # Calculate statistics
+            valid_atr = [d["atr"] for d in chart_data]
+            current_atr = valid_atr[-1]
+            avg_atr = np.mean(valid_atr)
+            std_atr = np.std(valid_atr)
+            
+            # Determine volatility state
+            z_score = (current_atr - avg_atr) / std_atr if std_atr > 0 else 0
+            
+            if z_score > 2:
+                volatility_state = "extreme"
+            elif z_score > 1:
+                volatility_state = "high"
+            elif z_score < -1:
+                volatility_state = "low"
+            else:
+                volatility_state = "normal"
+            
+            return {
+                "type": "volatility",
+                "pair": clean_pair,
+                "timeframe": period,
+                "data": chart_data,
+                "current_atr": round(current_atr, 6),
+                "avg_atr": round(avg_atr, 6),
+                "std_atr": round(std_atr, 6),
+                "volatility_state": volatility_state,
+                "z_score": round(z_score, 2),
+            }
+            
+        except Exception as e:
+            logger.error(f"Volatility chart generation failed for {pair}: {e}")
             return {"error": str(e)}
     
     def get_risk_visualization(self, pair: str) -> Dict:
@@ -412,6 +648,49 @@ class ChartService:
         std = np.zeros_like(prices, dtype=float)
         std[:period-1] = np.nan
         
+        for i in range(period - 1, len(prices)):
+            std[i] = np.std(prices[i - period + 1:i + 1])
+        
+        upper = middle + (std * std_dev)
+        lower = middle - (std * std_dev)
+        
+        return middle, upper, lower
+    
+    def _calculate_atr(self, high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> np.ndarray:
+        """
+        Calculate Average True Range (ATR).
+        
+        ATR measures volatility by calculating the average of true ranges over a period.
+        True Range is the greatest of:
+        - Current High - Current Low
+        - abs(Current High - Previous Close)
+        - abs(Current Low - Previous Close)
+        """
+        if len(high) < period + 1:
+            logger.warning(f"Insufficient data for ATR: {len(high)} candles (need {period + 1})")
+            return np.full_like(high, np.nan)
+        
+        # Calculate True Range
+        tr = np.zeros(len(high))
+        
+        for i in range(1, len(high)):
+            hl = high[i] - low[i]
+            hc = abs(high[i] - close[i-1])
+            lc = abs(low[i] - close[i-1])
+            tr[i] = max(hl, hc, lc)
+        
+        # Calculate ATR using EMA smoothing
+        atr = np.zeros_like(high, dtype=float)
+        atr[:period] = np.nan
+        
+        # Initial ATR is simple average of first 'period' TRs
+        atr[period] = np.mean(tr[1:period+1])
+        
+        # Subsequent ATRs use smoothing: ATR = ((prior ATR * (period-1)) + current TR) / period
+        for i in range(period + 1, len(high)):
+            atr[i] = ((atr[i-1] * (period - 1)) + tr[i]) / period
+        
+        return atr
         for i in range(period - 1, len(prices)):
             std[i] = np.std(prices[i - period + 1:i + 1])
         
