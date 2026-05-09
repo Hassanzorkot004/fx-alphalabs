@@ -278,9 +278,17 @@ class TechnicalAgent:
         probs_mean  = arr.mean(0)
         uncertainty = float(arr.std(0).mean())
         p_sell, p_hold, p_buy = probs_mean
-        direction  = 1 if p_buy > p_sell else (-1 if p_sell > p_buy else 0)
         confidence = float(max(p_buy, p_sell) - p_hold)
-        signal     = "BUY" if direction == 1 else ("SELL" if direction == -1 else "HOLD")
+
+        # If the model has near-zero conviction (max prob barely above hold),
+        # treat as HOLD rather than generating a weak directional signal
+        MIN_TECH_CONFIDENCE = 0.05
+        if confidence < MIN_TECH_CONFIDENCE or max(p_buy, p_sell) < 0.36:
+            direction = 0
+            signal    = "HOLD"
+        else:
+            direction = 1 if p_buy > p_sell else (-1 if p_sell > p_buy else 0)
+            signal    = "BUY" if direction == 1 else ("SELL" if direction == -1 else "HOLD")
 
         return {
             "direction":   direction,

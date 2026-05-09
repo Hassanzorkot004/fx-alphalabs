@@ -43,7 +43,7 @@ export default function EquityCurveChart({ data }: EquityCurveChartProps) {
         fontSize: 12,
       }}>
         <div style={{ color: 'var(--text3)', marginBottom: 6 }}>{data.time}</div>
-        <div style={{ color: 'var(--amber)', fontWeight: 600, marginBottom: 4 }}>
+        <div style={{ color: 'var(--cyan)', fontWeight: 600, marginBottom: 4 }}>
           Cumulative: {data.pips >= 0 ? '+' : ''}{data.pips.toFixed(1)} pips
         </div>
         {data.trade !== undefined && data.trade !== null && (
@@ -81,9 +81,9 @@ export default function EquityCurveChart({ data }: EquityCurveChartProps) {
         <Line 
           type="monotone" 
           dataKey="pips" 
-          stroke="var(--amber)" 
+          stroke="var(--cyan)" 
           strokeWidth={2}
-          dot={{ fill: 'var(--amber)', r: 3 }}
+          dot={{ fill: 'var(--cyan)', r: 3 }}
           activeDot={{ r: 5 }}
         />
       </LineChart>

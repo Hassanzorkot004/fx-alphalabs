@@ -3,8 +3,7 @@ import { notificationManager } from '../utils/notifications';
 
 interface Settings {
   watchlist: string[];
-  defaultMode: 'simple' | 'pro';
-  theme: 'dark';
+  theme: 'dark' | 'light';
   notifications: {
     enabled: boolean;
     newSignals: boolean;
@@ -18,7 +17,6 @@ interface Settings {
 
 const DEFAULT_SETTINGS: Settings = {
   watchlist: ['EURUSD', 'GBPUSD', 'USDJPY'],
-  defaultMode: 'simple',
   theme: 'dark',
   notifications: {
     enabled: false,
@@ -49,6 +47,11 @@ export default function SettingsPage() {
       }
     }
   }, []);
+
+  // Apply theme to document root whenever it changes
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', settings.theme);
+  }, [settings.theme]);
 
   const saveSettings = () => {
     localStorage.setItem('fx-alphalab-settings', JSON.stringify(settings));
@@ -85,14 +88,13 @@ export default function SettingsPage() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)' }}>
+    <div style={{ minHeight: 'calc(100vh - 49px)', background: 'var(--bg)', color: 'var(--text)' }}>
       {/* Header */}
       <div style={{
-        background: 'var(--bg1)',
+        padding: '20px 24px 16px',
         borderBottom: '1px solid var(--border)',
-        padding: '16px 24px',
       }}>
-        <h1 className="mono" style={{ fontSize: 20, fontWeight: 600, color: 'var(--amber)', marginBottom: 4 }}>
+        <h1 className="mono" style={{ fontSize: 22, fontWeight: 700, color: 'var(--cyan)', marginBottom: 4 }}>
           Settings
         </h1>
         <div style={{ fontSize: 13, color: 'var(--text3)' }}>
@@ -129,7 +131,7 @@ export default function SettingsPage() {
                     width: 18,
                     height: 18,
                     cursor: 'pointer',
-                    accentColor: 'var(--amber)',
+                    accentColor: 'var(--cyan)',
                   }}
                 />
                 <span className="mono" style={{ fontSize: 14, fontWeight: 600 }}>
@@ -140,53 +142,57 @@ export default function SettingsPage() {
           </div>
         </Section>
 
-        {/* Default Mode Section */}
-        <Section 
-          title="Default AlphaBot Mode" 
-          description="Choose your preferred explanation style. You can quickly toggle this in the chat header."
-        >
-          <div style={{ display: 'flex', gap: 12 }}>
-            <ModeButton
-              label="Simple"
-              description="Plain language, beginner-friendly"
-              isSelected={settings.defaultMode === 'simple'}
-              onClick={() => setSettings(prev => ({ ...prev, defaultMode: 'simple' }))}
-            />
-            <ModeButton
-              label="Pro"
-              description="Technical terminology, detailed metrics"
-              isSelected={settings.defaultMode === 'pro'}
-              onClick={() => setSettings(prev => ({ ...prev, defaultMode: 'pro' }))}
-            />
-          </div>
-        </Section>
-
         {/* Theme Section */}
-        <Section title="Theme" description="Visual appearance (more themes coming soon)">
-          <div style={{
-            padding: 16,
-            background: 'var(--bg3)',
-            border: '1px solid var(--border)',
-            borderRadius: 6,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-          }}>
-            <div style={{
-              width: 40,
-              height: 40,
-              background: 'linear-gradient(135deg, var(--bg), var(--amber))',
-              borderRadius: 6,
-              border: '2px solid var(--amber)',
-            }} />
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>
-                Dark (Amber)
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-                Current theme
-              </div>
-            </div>
+        <Section title="Theme" description="Switch between dark and light mode">
+          <div style={{ display: 'flex', gap: 12 }}>
+            {(['dark', 'light'] as const).map(t => (
+              <button
+                key={t}
+                onClick={() => setSettings(prev => ({ ...prev, theme: t }))}
+                style={{
+                  flex: 1,
+                  padding: '14px 16px',
+                  background: settings.theme === t
+                    ? t === 'dark' ? 'rgba(0,212,255,0.08)' : 'rgba(0,100,200,0.08)'
+                    : 'var(--bg3)',
+                  border: `2px solid ${settings.theme === t ? 'var(--cyan)' : 'var(--border)'}`,
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {/* Theme preview swatch */}
+                <div style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 6,
+                  border: '1px solid rgba(128,128,128,0.3)',
+                  background: t === 'dark'
+                    ? 'linear-gradient(135deg, #0d1117 50%, #00d4ff 50%)'
+                    : 'linear-gradient(135deg, #f0f4f8 50%, #0066cc 50%)',
+                  flexShrink: 0,
+                }} />
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: settings.theme === t ? 'var(--cyan)' : 'var(--text)',
+                    marginBottom: 2,
+                  }}>
+                    {t === 'dark' ? 'Dark' : 'Light'}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                    {t === 'dark' ? 'Navy background, cyan accents' : 'Clean white, blue accents'}
+                  </div>
+                </div>
+                {settings.theme === t && (
+                  <span style={{ marginLeft: 'auto', color: 'var(--cyan)', fontSize: 14 }}>✓</span>
+                )}
+              </button>
+            ))}
           </div>
         </Section>
 
@@ -230,7 +236,7 @@ export default function SettingsPage() {
                     <button
                       onClick={enableNotifications}
                       style={{
-                        background: 'var(--amber)',
+                        background: 'var(--cyan)',
                         color: 'var(--bg)',
                         border: 'none',
                         padding: '8px 16px',
@@ -255,7 +261,7 @@ export default function SettingsPage() {
                           width: 20,
                           height: 20,
                           cursor: 'pointer',
-                          accentColor: 'var(--amber)',
+                          accentColor: 'var(--cyan)',
                         }}
                       />
                     </label>
@@ -333,7 +339,7 @@ export default function SettingsPage() {
                             ...prev,
                             notifications: { ...prev.notifications, confidenceThreshold: parseInt(e.target.value) / 100 },
                           }))}
-                          style={{ width: '100%', accentColor: 'var(--amber)' }}
+                          style={{ width: '100%', accentColor: 'var(--cyan)' }}
                         />
                       </div>
                       <div>
@@ -350,7 +356,7 @@ export default function SettingsPage() {
                             ...prev,
                             notifications: { ...prev.notifications, significantConfidenceChange: parseInt(e.target.value) / 100 },
                           }))}
-                          style={{ width: '100%', accentColor: 'var(--amber)' }}
+                          style={{ width: '100%', accentColor: 'var(--cyan)' }}
                         />
                       </div>
                     </div>
@@ -372,7 +378,7 @@ export default function SettingsPage() {
           <button
             onClick={saveSettings}
             style={{
-              background: 'var(--amber)',
+              background: 'var(--cyan)',
               color: 'var(--bg)',
               border: 'none',
               padding: '12px 24px',
@@ -417,6 +423,46 @@ export default function SettingsPage() {
           <strong style={{ color: 'var(--text2)' }}>Note:</strong> Settings are stored locally in your browser.
           They will persist across sessions but won't sync between devices.
         </div>
+
+        {/* About Card */}
+        <div style={{
+          marginTop: 32,
+          padding: '20px 24px',
+          background: 'var(--bg2)',
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+        }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--cyan)', marginBottom: 14 }}>
+            About
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, color: 'var(--text1)', fontWeight: 600 }}>FX AlphaLab v4.0</div>
+            <div style={{ fontSize: 13, color: 'var(--text2)' }}>5-Stage Hybrid Pipeline</div>
+            <div style={{ fontSize: 13, color: 'var(--text2)' }}>Llama 3.3 70B · Groq API · Ollama fallback</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {[
+              { stage: '1', label: 'Macro Agent', detail: 'KMeans · 9 features · yield curve + VIX + CB guidance' },
+              { stage: '2', label: 'Technical Agent', detail: 'TCN+LSTM · per-pair · 23 features · MC dropout' },
+              { stage: '3', label: 'Sentiment Agent', detail: 'XGBoost · macro-context-aware · RAG news retrieval' },
+              { stage: '4', label: 'Conviction Gate', detail: 'Deterministic Python · weighted voting · confidence tiers' },
+              { stage: '5', label: 'LLM Orchestrator', detail: 'Per-agent analyst reports · Groq reasoning · RAG headlines' },
+            ].map(({ stage, label, detail }) => (
+              <div key={stage} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, color: 'var(--cyan)',
+                  background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)',
+                  borderRadius: 3, padding: '1px 5px', minWidth: 18, textAlign: 'center',
+                  fontFamily: 'monospace', marginTop: 1,
+                }}>{stage}</span>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--text1)', fontWeight: 600 }}>{label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{detail}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -439,42 +485,6 @@ function Section({ title, description, children }: {
       </div>
       {children}
     </div>
-  );
-}
-
-function ModeButton({ label, description, isSelected, onClick }: {
-  label: string;
-  description: string;
-  isSelected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        flex: 1,
-        padding: 16,
-        background: isSelected ? 'var(--amber)20' : 'var(--bg3)',
-        border: `2px solid ${isSelected ? 'var(--amber)' : 'var(--border)'}`,
-        borderRadius: 6,
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-        textAlign: 'left',
-      }}
-      className={!isSelected ? 'hover:border-border2' : ''}
-    >
-      <div style={{
-        fontSize: 14,
-        fontWeight: 600,
-        color: isSelected ? 'var(--amber)' : 'var(--text)',
-        marginBottom: 4,
-      }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-        {description}
-      </div>
-    </button>
   );
 }
 
@@ -510,7 +520,7 @@ function NotificationToggle({ label, description, checked, onChange }: {
           width: 18,
           height: 18,
           cursor: 'pointer',
-          accentColor: 'var(--amber)',
+          accentColor: 'var(--cyan)',
         }}
       />
     </label>

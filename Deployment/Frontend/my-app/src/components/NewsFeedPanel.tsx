@@ -7,7 +7,6 @@ interface NewsFeedPanelProps {
 }
 
 export default function NewsFeedPanel({ articles, selectedPair, onArticleClick }: NewsFeedPanelProps) {
-  // Filter to articles relevant to selected pair
   const filteredArticles = selectedPair
     ? articles.filter(article => {
         const pairCurrencies: string[] = selectedPair.replace('=X', '').match(/.{3}/g) || [];
@@ -22,78 +21,99 @@ export default function NewsFeedPanel({ articles, selectedPair, onArticleClick }
       background: 'var(--bg2)',
       border: '1px solid var(--border)',
       borderRadius: 8,
-      padding: 16,
-      maxHeight: 400,
-      overflowY: 'auto',
+      overflow: 'hidden',
     }}>
-      <div className="mono" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', marginBottom: 12 }}>
-        NEWS FEED
+      {/* Header */}
+      <div style={{
+        padding: '10px 16px',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        background: 'var(--bg3)',
+      }}>
+        <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          News Wire
+        </span>
+        <span className="mono" style={{ fontSize: 10, color: 'var(--text3)' }}>
+          {recentArticles.length} article{recentArticles.length !== 1 ? 's' : ''}
+        </span>
       </div>
 
-      {recentArticles.length === 0 ? (
-        <div style={{ color: 'var(--text3)', fontSize: 12 }}>
-          No recent articles
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {recentArticles.map((article, idx) => (
-            <ArticleItem key={idx} article={article} onClick={onArticleClick} />
-          ))}
-        </div>
-      )}
+      {/* Articles */}
+      <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+        {recentArticles.length === 0 ? (
+          <div style={{ padding: '20px 16px', color: 'var(--text3)', fontSize: 12, textAlign: 'center' }}>
+            No recent articles
+          </div>
+        ) : (
+          recentArticles.map((article, idx) => (
+            <ArticleItem
+              key={idx}
+              article={article}
+              onClick={onArticleClick}
+              isLast={idx === recentArticles.length - 1}
+            />
+          ))
+        )}
+      </div>
     </div>
   );
 }
 
-function ArticleItem({ article, onClick }: { article: NewsArticle; onClick?: (article: NewsArticle) => void }) {
+function ArticleItem({
+  article,
+  onClick,
+  isLast,
+}: {
+  article: NewsArticle;
+  onClick?: (article: NewsArticle) => void;
+  isLast: boolean;
+}) {
   return (
-    <div 
+    <div
       onClick={() => onClick?.(article)}
       title="Click to ask AlphaBot about this"
       style={{
-        padding: 10,
-        background: 'var(--bg3)',
-        border: '1px solid var(--border)',
-        borderRadius: 6,
+        padding: '10px 16px',
+        borderBottom: isLast ? 'none' : '1px solid var(--border)',
         cursor: 'pointer',
-        transition: 'all 0.2s ease',
-        position: 'relative',
+        transition: 'background 0.12s ease',
+        display: 'flex',
+        gap: 12,
+        alignItems: 'flex-start',
       }}
-      className="hover:border-amber hover:bg-bg2"
+      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg3)'}
+      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
     >
-      <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
-        {article.tags.map(tag => (
-          <span
-            key={tag}
-            className="mono"
-            style={{
-              fontSize: 9,
-              color: 'var(--amber)',
-              background: 'var(--amber)20',
-              padding: '2px 6px',
-              borderRadius: 3,
-              fontWeight: 600,
-            }}
-          >
+      {/* Tags */}
+      <div style={{ display: 'flex', gap: 4, flexShrink: 0, paddingTop: 2 }}>
+        {article.tags.slice(0, 2).map(tag => (
+          <span key={tag} className="mono" style={{
+            fontSize: 9,
+            color: 'var(--cyan)',
+            background: 'rgba(0,212,255,0.1)',
+            border: '1px solid rgba(0,212,255,0.2)',
+            padding: '2px 5px',
+            borderRadius: 3,
+            fontWeight: 600,
+          }}>
             {tag}
           </span>
         ))}
-        <span className="mono" style={{ fontSize: 9, color: 'var(--text3)', marginLeft: 'auto' }}>
-          {article.age_label}
-        </span>
       </div>
-      <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.4 }}>
-        {article.title}
+
+      {/* Title */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.45 }}>
+          {article.title}
+        </div>
       </div>
-      <div className="mono article-hint" style={{ 
-        fontSize: 9, 
-        color: 'var(--amber)', 
-        marginTop: 6,
-        opacity: 0,
-        transition: 'opacity 0.2s ease',
-      }}>
-        💬 Ask about this
-      </div>
+
+      {/* Age */}
+      <span className="mono" style={{ fontSize: 10, color: 'var(--text3)', flexShrink: 0, paddingTop: 2 }}>
+        {article.age_label}
+      </span>
     </div>
   );
 }

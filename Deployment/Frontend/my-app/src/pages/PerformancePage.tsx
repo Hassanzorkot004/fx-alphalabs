@@ -130,52 +130,49 @@ export default function PerformancePage() {
 
   if (loading) {
     return (
-      <div style={{ 
-        minHeight: '100vh', 
-        background: 'var(--bg)', 
-        display: 'flex', 
-        alignItems: 'center', 
+      <div style={{
+        minHeight: 'calc(100vh - 49px)',
+        background: 'var(--bg)',
+        display: 'flex',
+        alignItems: 'center',
         justifyContent: 'center',
         color: 'var(--text3)',
       }}>
-        Loading performance data...
+        <span className="mono" style={{ fontSize: 12 }}>Loading performance data…</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ 
-        minHeight: '100vh', 
-        background: 'var(--bg)', 
-        padding: 40,
-        color: 'var(--red)',
-      }}>
+      <div style={{ minHeight: 'calc(100vh - 49px)', background: 'var(--bg)', padding: 40, color: 'var(--red)' }}>
         Error: {error}
       </div>
     );
   }
 
+  // No signals yet — show a friendly empty state
+  const hasData = summary && summary.total_signals > 0;
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)' }}>
+    <div style={{ minHeight: 'calc(100vh - 49px)', background: 'var(--bg)', color: 'var(--text)' }}>
       {/* Header */}
       <div style={{
-        background: 'var(--bg1)',
+        padding: '20px 24px 16px',
         borderBottom: '1px solid var(--border)',
-        padding: '16px 24px',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-end',
       }}>
         <div>
-          <h1 className="mono" style={{ fontSize: 20, fontWeight: 600, color: 'var(--amber)', marginBottom: 4 }}>
+          <h1 className="mono" style={{ fontSize: 22, fontWeight: 700, color: 'var(--cyan)', marginBottom: 4 }}>
             Strategy Performance
           </h1>
           <div style={{ fontSize: 13, color: 'var(--text3)' }}>
             Signal quality metrics and analytics
           </div>
         </div>
-        
+
         {/* Pair Filter */}
         <select
           value={selectedPair}
@@ -184,11 +181,12 @@ export default function PerformancePage() {
             background: 'var(--bg3)',
             border: '1px solid var(--border)',
             color: 'var(--text)',
-            padding: '8px 16px',
+            padding: '7px 28px 7px 12px',
             borderRadius: 6,
-            fontSize: 13,
+            fontSize: 12,
             cursor: 'pointer',
             fontWeight: 600,
+            outline: 'none',
           }}
         >
           <option value="all">All Pairs</option>
@@ -199,64 +197,107 @@ export default function PerformancePage() {
       </div>
 
       {/* Content */}
-      <div style={{ padding: 24 }}>
+      <div style={{ padding: '20px 24px' }}>
+
+        {/* Signal Overview — always shown when we have any signals */}
+        {hasData && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(6, 1fr)',
+            gap: 12,
+            marginBottom: 20,
+          }}>
+            {[
+              { label: 'Total Signals', value: summary!.total_signals, color: 'var(--text)' },
+              { label: 'BUY', value: (summary as any).buy_signals ?? 0, color: 'var(--green)' },
+              { label: 'SELL', value: (summary as any).sell_signals ?? 0, color: 'var(--red)' },
+              { label: 'HOLD', value: (summary as any).hold_signals ?? 0, color: 'var(--text3)' },
+              { label: 'Avg Confidence', value: `${Math.round(((summary as any).avg_confidence ?? 0) * 100)}%`, color: 'var(--cyan)' },
+              { label: 'Win Rate', value: summary!.win_rate > 0 ? `${Math.round(summary!.win_rate * 100)}%` : '—', color: 'var(--green)' },
+            ].map(({ label, value, color }) => (
+              <div key={label} style={{
+                background: 'var(--bg2)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: '14px 16px',
+                textAlign: 'center',
+              }}>
+                <div className="mono" style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
+                <div className="mono" style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* No data yet */}
+        {!hasData && (
+          <div style={{
+            background: 'var(--bg2)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            padding: '48px 24px',
+            textAlign: 'center',
+            marginBottom: 20,
+          }}>
+            <div className="mono" style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 8 }}>No signal data yet</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6 }}>
+              Hit <strong style={{ color: 'var(--cyan)' }}>RUN NOW</strong> on the dashboard to generate signals.
+            </div>
+          </div>
+        )}
+
         {/* Metrics Dashboard */}
-        {summary && <MetricsDashboard summary={summary} />}
+        {summary && hasData && <MetricsDashboard summary={summary} />}
 
         {/* Charts Grid */}
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: '1fr 1fr', 
-          gap: 20, 
-          marginTop: 20,
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 16,
+          marginTop: 16,
         }}>
-          {/* Equity Curve */}
           {equityData && (
             <div style={{
               background: 'var(--bg2)',
               border: '1px solid var(--border)',
               borderRadius: 8,
-              padding: 20,
+              padding: '14px 16px 16px',
             }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text2)', marginBottom: 16 }}>
+              <div className="mono" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14 }}>
                 Cumulative Pips
-              </h3>
+              </div>
               <EquityCurveChart data={equityData} />
             </div>
           )}
 
-          {/* Drawdown */}
           {drawdownData && (
             <div style={{
               background: 'var(--bg2)',
               border: '1px solid var(--border)',
               borderRadius: 8,
-              padding: 20,
+              padding: '14px 16px 16px',
             }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text2)', marginBottom: 16 }}>
+              <div className="mono" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14 }}>
                 Drawdown Analysis
-              </h3>
+              </div>
               <DrawdownChart data={drawdownData} />
             </div>
           )}
         </div>
 
-        {/* Pair Comparison */}
         {pairComparison && selectedPair === 'all' && (
-          <div style={{ marginTop: 20 }}>
+          <div style={{ marginTop: 16 }}>
             <PairComparison data={pairComparison} />
           </div>
         )}
 
-        {/* Recent Trades */}
         {recentSignals && (
-          <div style={{ marginTop: 20 }}>
+          <div style={{ marginTop: 16 }}>
             <RecentTradesList data={recentSignals} />
           </div>
         )}
 
-        {/* Position Size Calculator */}
-        <div style={{ marginTop: 20 }}>
+        <div style={{ marginTop: 16 }}>
           <PositionSizeCalculator totalPips={summary?.total_pips || 0} />
         </div>
       </div>

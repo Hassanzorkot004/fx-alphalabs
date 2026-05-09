@@ -69,6 +69,7 @@ macro:
     - mac_yield_mom
     - mac_yield_accel
     - mac_cb_tone_z
+    - mac_cb_guidance_z
     - mac_cb_shock_z
     - mac_macro_strength
     - mac_vix_global
@@ -119,13 +120,14 @@ sentiment:
     - nws_sent_pressure
     - nws_pressure_change
     - nws_flow_accel
-    - nws_flow_imbalance
-    - nws_news_flow
     - nws_trend_strength
+    - ctx_regime_bearish
+    - ctx_regime_bullish
+    - ctx_vix_z
   window_bars:     48
   hidden:          64
 
 signal:
-  min_confidence:      0.38
+  min_confidence:      0.50
   min_agent_agreement: 2
   position_size_max:   1.0

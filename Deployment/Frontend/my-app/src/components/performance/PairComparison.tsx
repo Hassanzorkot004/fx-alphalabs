@@ -20,12 +20,13 @@ export default function PairComparison({ data }: PairComparisonProps) {
       overflow: 'hidden',
     }}>
       <div style={{
-        padding: 20,
+        padding: '10px 16px',
         borderBottom: '1px solid var(--border)',
+        background: 'var(--bg3)',
       }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text2)' }}>
+        <div className="mono" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
           Pair Comparison
-        </h3>
+        </div>
       </div>
       
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -71,7 +72,7 @@ export default function PairComparison({ data }: PairComparisonProps) {
               <td 
                 style={{ 
                   ...tdStyle, 
-                  color: pair.profit_factor >= 1.5 ? 'var(--green)' : pair.profit_factor >= 1 ? 'var(--amber)' : 'var(--red)',
+                  color: pair.profit_factor >= 1.5 ? 'var(--green)' : pair.profit_factor >= 1 ? 'var(--cyan)' : 'var(--red)',
                 }} 
                 className="mono"
               >
@@ -80,7 +81,7 @@ export default function PairComparison({ data }: PairComparisonProps) {
               <td 
                 style={{ 
                   ...tdStyle, 
-                  color: pair.sharpe_ratio >= 1 ? 'var(--green)' : pair.sharpe_ratio >= 0 ? 'var(--amber)' : 'var(--red)',
+                  color: pair.sharpe_ratio >= 1 ? 'var(--green)' : pair.sharpe_ratio >= 0 ? 'var(--cyan)' : 'var(--red)',
                 }} 
                 className="mono"
               >

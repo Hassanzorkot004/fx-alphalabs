@@ -43,6 +43,10 @@ class SignalStore:
                 "p_buy": 0.0, "p_sell": 0.0, "p_hold": 0.0, "model_conf": 0.0,
                 "rsi14": 0.0, "macd_hist": 0.0, "bb_pos": 0.5,
                 "p_bullish": 0.0, "n_articles": 0, "sent_raw": 0.0, "headlines": "[]",
+                # Per-agent LLM analyst reports (v4 pipeline)
+                "macro_analyst": "", "macro_key_feat": "", "macro_override": False,
+                "tech_analyst":  "", "tech_key_feat":  "", "tech_override":  False,
+                "sent_analyst":  "", "sent_key_feat":  "", "sent_override":  False,
             }
             for col, default in new_cols.items():
                 if col not in df.columns:
@@ -68,6 +72,13 @@ class SignalStore:
                 df = df.sort_values("timestamp", ascending=False)
             
             all_signals = df.to_dict(orient="records")
+            # Replace pandas NaN/NaT with None so the dicts are JSON-safe
+            import math
+            def _clean(v):
+                if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+                    return None
+                return v
+            all_signals = [{k: _clean(v) for k, v in row.items()} for row in all_signals]
             logger.debug(f"load_from_csv: converted to {len(all_signals)} signal dicts")
             
             with self.lock:
@@ -91,7 +102,6 @@ class SignalStore:
         logger.debug(f"update() received {len(signals)} signals: {[s.get('pair') for s in signals]}")
         
         with self.lock:
-            # Update in-memory state directly from incoming signals
             for s in signals:
                 pair = str(s.get("pair", ""))
                 # Replace latest signal for this pair
@@ -99,14 +109,14 @@ class SignalStore:
                                       if str(x.get("pair", "")) != pair]
                 self.last_signals.append(s)
             
-            # Append to history if active (position_size > 0)
+            # Add all directional signals to history (not just position_size > 0)
+            # HOLD signals are still recorded so the history is complete
             for s in signals:
-                if float(s.get("position_size", 0)) > 0:
-                    self.history.insert(0, s)
+                self.history.insert(0, s)
             
-            logger.debug(f"After update: last_signals has {len(self.last_signals)} signals: {[s.get('pair') for s in self.last_signals]}")
+            logger.debug(f"After update: last_signals={[s.get('pair') for s in self.last_signals]}, history={len(self.history)}")
         
-        logger.info(f"State updated with {len(signals)} new signals")
+        logger.info(f"State updated: {len(signals)} signals, {len(self.history)} total history")
     
     def _get_latest_signals(self, all_signals: List[Dict]) -> List[Dict]:
         """Get the latest signal per pair"""
@@ -122,8 +132,8 @@ class SignalStore:
         return latest
     
     def _get_active_signals(self, all_signals: List[Dict]) -> List[Dict]:
-        """Get signals with position_size > 0"""
-        return [s for s in all_signals if float(s.get("position_size", 0)) > 0]
+        """Return all signals for history — including HOLDs."""
+        return list(all_signals)
     
     def _compute_stats(self, all_signals: List[Dict]) -> Dict:
         """Compute performance metrics - try to load from cache first"""

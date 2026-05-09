@@ -3,10 +3,17 @@ agents/macro_agent.py
 ────────────────────────────────────────────────────────────────────────────
 Macro Agent — KMeans clustering on mac_* features with absolute labelling.
 
-IMPROVEMENT: predict_live() now uses pair_carry_signal (pair-specific
-yield differential) as a secondary signal to refine the regime label.
-If the carry signal strongly disagrees with the cluster label, the
-regime is downgraded to neutral (more conservative).
+ARCHITECTURE v4 (5-stage pipeline):
+  Stage 1 of 5. Runs FIRST and feeds regime context to Technical (Stage 2)
+  and Sentiment (Stage 3) agents, enabling cross-agent information flow.
+
+  Added feature: mac_cb_guidance_z (central bank guidance signal from
+  unified matrix) — captures forward guidance tone beyond just rate moves.
+
+  predict_live() returns a richer context dict that downstream agents
+  can consume directly.
+
+  Per-agent LLM: analyst_text is populated by the Orchestrator (Stage 5).
 """
 from __future__ import annotations
 
@@ -25,7 +32,7 @@ class MacroAgent:
 
     FEATURE_COLS = [
         "mac_yield_z", "mac_yield_mom", "mac_yield_accel",
-        "mac_cb_tone_z", "mac_cb_shock_z",
+        "mac_cb_tone_z", "mac_cb_guidance_z", "mac_cb_shock_z",
         "mac_macro_strength", "mac_vix_global", "mac_vix_z",
     ]
     STATE_LABELS = ["bullish", "neutral", "bearish"]
@@ -77,10 +84,13 @@ class MacroAgent:
         """
         Absolute threshold labelling — never calls the least-bullish
         cluster 'bearish' when all clusters have positive yield_z.
+
+        Thresholds are intentionally conservative to avoid over-riding
+        the cluster label on marginal readings.
         """
-        if mean_yield_z > 0.15 and mean_macro_str > -0.10:
+        if mean_yield_z > 0.30 and mean_macro_str > 0.05:
             return "bullish"
-        elif mean_yield_z < -0.15 or mean_macro_str < -0.30:
+        elif mean_yield_z < -0.50 and mean_macro_str < -0.20:
             return "bearish"
         else:
             return "neutral"
@@ -113,8 +123,11 @@ class MacroAgent:
         dists      = np.linalg.norm(X[:, np.newaxis] - self._means[np.newaxis], axis=2)
         raw_states = dists.argmin(axis=1)
 
-        yield_z_raw = X_raw[:, 0]
-        mac_str_raw = X_raw[:, 5]
+        # yield_z is index 0, macro_strength is index 6 (after adding mac_cb_guidance_z)
+        yield_z_idx = self.FEATURE_COLS.index("mac_yield_z")
+        mac_str_idx = self.FEATURE_COLS.index("mac_macro_strength")
+        yield_z_raw = X_raw[:, yield_z_idx]
+        mac_str_raw = X_raw[:, mac_str_idx]
         mean_yz     = {s: float(np.mean(yield_z_raw[raw_states == s])) for s in range(self.n_states)}
         mean_ms     = {s: float(np.mean(mac_str_raw[raw_states == s])) for s in range(self.n_states)}
 
@@ -174,8 +187,10 @@ class MacroAgent:
         conf  = float(probs[raw_state])
 
         # Absolute threshold override using current raw features
-        cur_yield_z = float(X_raw[-1, 0])
-        cur_mac_str = float(X_raw[-1, 5])
+        yield_z_idx = self.FEATURE_COLS.index("mac_yield_z")
+        mac_str_idx = self.FEATURE_COLS.index("mac_macro_strength")
+        cur_yield_z = float(X_raw[-1, yield_z_idx])
+        cur_mac_str = float(X_raw[-1, mac_str_idx])
         abs_label   = self._label_from_scores(cur_yield_z, cur_mac_str)
 
         if abs_label != label:

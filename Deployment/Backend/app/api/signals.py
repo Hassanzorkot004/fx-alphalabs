@@ -1,6 +1,5 @@
-"""Signal endpoints"""
-
 import json
+import math
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
@@ -10,8 +9,19 @@ from app.services import agent_service, signal_store
 router = APIRouter()
 
 
+def _clean_nan(obj):
+    """Recursively replace NaN/Inf with None so JSON serialization doesn't crash."""
+    if isinstance(obj, dict):
+        return {k: _clean_nan(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_clean_nan(v) for v in obj]
+    elif isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
+    return obj
+
+
 def enrich_signal_for_api(s: dict) -> dict:
-    """Add computed fields that don't need to be stored."""
+    """Add computed fields and sanitize NaN values."""
     out = dict(s)
     
     # Compute signal age and lifecycle
@@ -20,9 +30,8 @@ def enrich_signal_for_api(s: dict) -> dict:
         age_hours = (datetime.now(timezone.utc) - ts).total_seconds() / 3600
         out["age_hours"] = round(age_hours, 2)
         
-        # Effective horizon: shortest agent horizon that's actionable
         agreement = s.get("agent_agreement", "CONFLICT")
-        horizon = 8.0 if agreement == "FULL" else 12.0  # conservative
+        horizon = 8.0 if agreement == "FULL" else 12.0
         pct_elapsed = age_hours / horizon
         
         if pct_elapsed >= 1.0:
@@ -48,7 +57,8 @@ def enrich_signal_for_api(s: dict) -> dict:
         except Exception:
             out["headlines"] = []
 
-    return out
+    # Clean NaN/Inf — pandas fills missing numerics with NaN which breaks JSON
+    return _clean_nan(out)
 
 
 @router.get("/signals")
@@ -63,7 +73,8 @@ async def get_signals():
 async def get_history():
     """Get signal history"""
     state = signal_store.get_state()
-    return {"history": state["history"], "n": len(state["history"])}
+    enriched = [enrich_signal_for_api(s) for s in state["history"]]
+    return {"history": enriched, "n": len(enriched)}
 
 
 @router.get("/stats")
@@ -75,14 +86,20 @@ async def get_stats():
 
 @router.post("/run-now")
 async def run_now():
-    """Force an immediate agent cycle (for testing)"""
+    """Force an immediate agent cycle"""
     if agent_service.is_running:
         return {"status": "already_running", "cycle": agent_service.cycle_number}
     
     try:
-        # Run cycle in background (don't await)
         import asyncio
-        asyncio.create_task(agent_service.run_cycle())
+        from app.api.websocket import broadcast_update
+
+        async def _run_and_broadcast():
+            signals_list = await agent_service.run_cycle()
+            signal_store.update(signals_list)
+            await broadcast_update()
+
+        asyncio.create_task(_run_and_broadcast())
         return {"status": "started", "cycle": agent_service.cycle_number + 1}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
