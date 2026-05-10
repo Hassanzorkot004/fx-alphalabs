@@ -12,17 +12,25 @@ router = APIRouter()
 
 def enrich_signal_for_api(s: dict) -> dict:
     """Add computed fields that don't need to be stored."""
-    out = dict(s)
+    import math
+    out = {}
+    for key, val in s.items():
+        if isinstance(val, float) and math.isnan(val):
+            out[key] = None
+        else:
+            out[key] = val
     
     # Compute signal age and lifecycle
     try:
-        ts = datetime.fromisoformat(str(s.get("timestamp", "")).replace("Z", "+00:00"))
+        ts_str = str(out.get("timestamp", "")).replace("Z", "+00:00")
+        if not ts_str or ts_str.strip() == "":
+            raise ValueError("empty timestamp")
+        ts = datetime.fromisoformat(ts_str)
         age_hours = (datetime.now(timezone.utc) - ts).total_seconds() / 3600
         out["age_hours"] = round(age_hours, 2)
         
-        # Effective horizon: shortest agent horizon that's actionable
-        agreement = s.get("agent_agreement", "CONFLICT")
-        horizon = 8.0 if agreement == "FULL" else 12.0  # conservative
+        agreement = out.get("agent_agreement", "CONFLICT")
+        horizon = 8.0 if agreement == "FULL" else 12.0
         pct_elapsed = age_hours / horizon
         
         if pct_elapsed >= 1.0:

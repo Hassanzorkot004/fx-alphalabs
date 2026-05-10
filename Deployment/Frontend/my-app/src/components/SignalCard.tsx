@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Signal, Price, LiveContext } from '../Types';
 import { PAIR_DECIMALS } from '../config/constants';
 
@@ -9,320 +10,203 @@ interface SignalCardProps {
   onClick: () => void;
 }
 
-export default function SignalCardNew({ signal, price, liveContext, isSelected, onClick }: SignalCardProps) {
+export default function SignalCard({ signal, price, liveContext, isSelected, onClick }: SignalCardProps) {
+  const [expanded, setExpanded] = useState(false);
   const pair = signal.pair.replace('=X', '');
   const decimals = PAIR_DECIMALS[pair] || 5;
-  
-  // Use live context if available
-  const validity = liveContext?.validity;
-  const priceContext = liveContext?.price_context;
-  const techIndicators = liveContext?.tech_indicators;
-  
-  // Direction color
-  const directionColor = 
-    signal.direction === 'BUY' ? 'var(--green)' :
-    signal.direction === 'SELL' ? 'var(--red)' :
-    'var(--text3)';
 
-  // Agreement badge color
-  const agreementColor =
-    signal.agent_agreement === 'FULL' ? 'var(--green)' :
-    signal.agent_agreement === 'PARTIAL' ? 'var(--amber)' :
-    'var(--text3)';
+  const dirColor = signal.direction === 'BUY' ? 'var(--buy)' : signal.direction === 'SELL' ? 'var(--sell)' : 'var(--hold)';
+  const agreementColor = signal.agent_agreement === 'FULL' ? 'var(--emerald)' : signal.agent_agreement === 'PARTIAL' ? 'var(--amber)' : 'var(--text3)';
 
-  // Validity status color
-  const validityColor =
-    validity?.status === 'VALID' ? 'var(--green)' :
-    validity?.status === 'WARNING' || validity?.status === 'NEAR_EXPIRY' ? 'var(--amber)' :
-    'var(--red)';
-
-  const validityLabel =
-    validity?.status === 'VALID' ? 'Active' :
-    validity?.status === 'WARNING' ? 'Warning' :
-    validity?.status === 'NEAR_EXPIRY' ? 'Near Expiry' :
-    validity?.status === 'STOPPED_OUT' ? 'Stopped Out' :
-    validity?.status === 'TARGET_HIT' ? 'Target Hit' :
-    validity?.status === 'EXPIRED' ? 'Expired' :
-    signal.lifecycle_status === 'active' ? 'Active' :
-    signal.lifecycle_status === 'near_expiry' ? 'Near Expiry' :
-    'Expired';
-
-  // Current price display
   const currentPrice = price?.price || signal.price_at_signal || 0;
   const priceChange = price?.change || 0;
   const priceChangePct = price?.change_pct || 0;
 
+  const parsePacket = (data: any) => {
+    if (!data) return null;
+    if (typeof data === 'string') { try { return JSON.parse(data); } catch { return null; } }
+    return data;
+  };
+
+  const macroAgent = parsePacket((signal as any).macro_agent);
+  const techAgent = parsePacket((signal as any).tech_agent);
+  const sentAgent = parsePacket((signal as any).sent_agent);
+  const convictionData = parsePacket((signal as any).conviction_data);
+  const hasAnalystPackets = !!(macroAgent || techAgent || sentAgent);
+
   return (
-    <div
-      onClick={onClick}
-      style={{
-        background: 'var(--bg2)',
-        border: `1px solid ${isSelected ? 'var(--amber)' : 'var(--border)'}`,
-        borderRadius: 8,
-        padding: 16,
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-        borderBottomWidth: isSelected ? 3 : 1,
-        borderBottomColor: isSelected ? 'var(--amber)' : 'var(--border)',
-        opacity: validity?.status === 'EXPIRED' || validity?.status === 'STOPPED_OUT' ? 0.6 : 1,
-      }}
-      className="hover:border-border2"
-    >
-      {/* Header: Pair + Price */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+    <div onClick={onClick} className={`card-glow ${isSelected ? 'selected' : ''}`} style={{
+      background: 'var(--bg1)',
+      border: '1px solid var(--border)',
+      borderRadius: 12,
+      padding: 18,
+      cursor: 'pointer',
+      transition: 'all 0.3s ease',
+      position: 'relative',
+      overflow: 'hidden',
+      minHeight: 280,
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      {/* Top accent line */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${dirColor}, transparent)`, opacity: isSelected ? 1 : 0.5 }} />
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <div>
-          <div className="mono" style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>
-            {pair}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+            <span className="mono" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{pair}</span>
+            {signal.source === 'fallback' && <span className="badge badge-outline" style={{ color: 'var(--amber)', fontSize: 7 }}>R</span>}
           </div>
-          <div className="mono" style={{ fontSize: 11, color: 'var(--text3)' }}>
-            {liveContext?.signal_age_display || (signal.age_hours ? `${signal.age_hours.toFixed(1)}h ago` : '')}
+          <div className="mono" style={{ fontSize: 9, color: 'var(--text3)' }}>
+            {signal.key_driver ? `DRIVER: ${signal.key_driver}` : signal.age_hours ? `${signal.age_hours.toFixed(1)}h ago` : ''}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>
-            {currentPrice.toFixed(decimals)}
-          </div>
+          <div className="mono" style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>{currentPrice.toFixed(decimals)}</div>
           {price && (
-            <div className="mono" style={{ 
-              fontSize: 11, 
-              color: priceChange >= 0 ? 'var(--green)' : 'var(--red)' 
-            }}>
-              {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(decimals)} ({priceChangePct >= 0 ? '+' : ''}{priceChangePct.toFixed(2)}%)
+            <div className="mono" style={{ fontSize: 10, color: priceChange >= 0 ? 'var(--buy)' : 'var(--sell)' }}>
+              {priceChange >= 0 ? '↑' : '↓'} {Math.abs(priceChange).toFixed(decimals)} ({priceChangePct >= 0 ? '+' : ''}{priceChangePct.toFixed(2)}%)
             </div>
           )}
         </div>
       </div>
 
-      {/* Direction + Agreement + Validity */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <div style={{
-          background: directionColor + '20',
-          color: directionColor,
-          padding: '4px 10px',
-          borderRadius: 4,
-          fontSize: 12,
-          fontWeight: 600,
-          border: `1px solid ${directionColor}40`,
-        }}>
-          {signal.direction}
-        </div>
-        <div style={{
-          background: agreementColor + '20',
-          color: agreementColor,
-          padding: '4px 10px',
-          borderRadius: 4,
-          fontSize: 11,
-          fontWeight: 500,
-          border: `1px solid ${agreementColor}40`,
-        }}>
-          {signal.agent_agreement}
-        </div>
-        <div style={{
-          background: validityColor + '20',
-          color: validityColor,
-          padding: '4px 10px',
-          borderRadius: 4,
-          fontSize: 11,
-          fontWeight: 500,
-          border: `1px solid ${validityColor}40`,
-          marginLeft: 'auto',
-        }}>
-          {validityLabel}
-        </div>
+      {/* Direction + Agreement + Size */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span className="badge" style={{ background: dirColor + '18', color: dirColor, border: `1px solid ${dirColor}30`, fontSize: 11, padding: '5px 10px', borderRadius: 6, fontWeight: 700 }}>{signal.direction}</span>
+        <span className="badge badge-outline" style={{ color: agreementColor, fontSize: 9 }}>{signal.agent_agreement}</span>
+        {signal.position_size > 0 && <span className="badge" style={{ background: 'var(--bg3)', color: 'var(--text2)', fontSize: 9, marginLeft: 'auto' }}>{(signal.position_size * 100).toFixed(0)}%</span>}
       </div>
 
-      {/* Validity Warning/Info */}
-      {validity && validity.status !== 'VALID' && (
-        <div style={{
-          background: validityColor + '10',
-          border: `1px solid ${validityColor}30`,
-          borderRadius: 4,
-          padding: 8,
-          marginBottom: 12,
-          fontSize: 11,
-          color: 'var(--text2)',
-        }}>
-          <div style={{ fontWeight: 600, marginBottom: 4, color: validityColor }}>
-            {validity.reason}
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--text3)' }}>
-            {validity.action_recommended}
-          </div>
-        </div>
-      )}
-
-      {/* Price Context (vs entry/stop/target) */}
-      {priceContext && (priceContext.vs_entry || priceContext.vs_stop || priceContext.vs_target) && (
-        <div style={{
-          background: 'var(--bg3)',
-          borderRadius: 4,
-          padding: 8,
-          marginBottom: 12,
-          fontSize: 10,
-          display: 'flex',
-          gap: 12,
-          flexWrap: 'wrap',
-        }}>
-          {priceContext.vs_entry && (
-            <div>
-              <span style={{ color: 'var(--text3)' }}>Entry: </span>
-              <span className="mono" style={{ color: 'var(--text2)', fontWeight: 500 }}>
-                {priceContext.vs_entry}
-              </span>
-            </div>
-          )}
-          {priceContext.vs_stop && (
-            <div>
-              <span style={{ color: 'var(--text3)' }}>Stop: </span>
-              <span className="mono" style={{ color: 'var(--text2)', fontWeight: 500 }}>
-                {priceContext.vs_stop}
-              </span>
-            </div>
-          )}
-          {priceContext.vs_target && (
-            <div>
-              <span style={{ color: 'var(--text3)' }}>Target: </span>
-              <span className="mono" style={{ color: 'var(--text2)', fontWeight: 500 }}>
-                {priceContext.vs_target}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Technical Indicators from Model */}
-      {techIndicators && (techIndicators.p_buy !== undefined || techIndicators.rsi_14 !== null) && (
-        <div style={{
-          background: 'var(--bg3)',
-          borderRadius: 4,
-          padding: 8,
-          marginBottom: 12,
-          fontSize: 10,
-        }}>
-          <div style={{ 
-            color: 'var(--text3)', 
-            marginBottom: 6, 
-            fontSize: 9,
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-            fontWeight: 600,
-          }}>
-            Technical Agent Output
-          </div>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            {techIndicators.rsi_14 !== null && techIndicators.rsi_14 !== undefined && (
-              <div>
-                <span style={{ color: 'var(--text3)' }}>RSI: </span>
-                <span className="mono" style={{ 
-                  color: techIndicators.rsi_14 > 70 ? 'var(--red)' : 
-                         techIndicators.rsi_14 < 30 ? 'var(--green)' : 'var(--text2)',
-                  fontWeight: 500 
-                }}>
-                  {techIndicators.rsi_14.toFixed(1)}
-                </span>
-              </div>
-            )}
-            {techIndicators.p_buy !== undefined && (
-              <div>
-                <span style={{ color: 'var(--text3)' }}>P(BUY): </span>
-                <span className="mono" style={{ 
-                  color: techIndicators.p_buy > 0.5 ? 'var(--green)' : 'var(--text2)',
-                  fontWeight: 500 
-                }}>
-                  {(techIndicators.p_buy * 100).toFixed(0)}%
-                </span>
-              </div>
-            )}
-            {techIndicators.p_sell !== undefined && (
-              <div>
-                <span style={{ color: 'var(--text3)' }}>P(SELL): </span>
-                <span className="mono" style={{ 
-                  color: techIndicators.p_sell > 0.5 ? 'var(--red)' : 'var(--text2)',
-                  fontWeight: 500 
-                }}>
-                  {(techIndicators.p_sell * 100).toFixed(0)}%
-                </span>
-              </div>
-            )}
-            {techIndicators.p_hold !== undefined && (
-              <div>
-                <span style={{ color: 'var(--text3)' }}>P(HOLD): </span>
-                <span className="mono" style={{ color: 'var(--text2)', fontWeight: 500 }}>
-                  {(techIndicators.p_hold * 100).toFixed(0)}%
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Confidence bar */}
-      <div style={{ marginBottom: 12 }}>
+      {/* Confidence */}
+      <div style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-          <span style={{ fontSize: 11, color: 'var(--text3)' }}>Confidence</span>
-          <span className="mono" style={{ fontSize: 11, color: 'var(--text2)' }}>
-            {(signal.confidence * 100).toFixed(0)}%
-          </span>
+          <span className="mono" style={{ fontSize: 8, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '1px' }}>Conviction</span>
+          <span className="mono" style={{ fontSize: 10, color: dirColor, fontWeight: 600 }}>{(signal.confidence * 100).toFixed(0)}%</span>
         </div>
-        <div style={{ 
-          height: 4, 
-          background: 'var(--bg4)', 
-          borderRadius: 2, 
-          overflow: 'hidden' 
-        }}>
-          <div style={{
-            height: '100%',
-            width: `${signal.confidence * 100}%`,
-            background: `linear-gradient(90deg, ${directionColor}, ${directionColor}80)`,
-            transition: 'width 0.3s ease',
-          }} />
+        <div className="progress-track">
+          <div className="progress-fill" style={{ width: `${signal.confidence * 100}%`, background: `linear-gradient(90deg, ${dirColor}, ${dirColor}60)` }} />
         </div>
       </div>
 
-      {/* Agent pills */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <AgentPill label="Macro" signal={signal.macro_regime} />
-        <AgentPill label="Tech" signal={signal.tech_signal} />
-        <AgentPill label="Sent" signal={signal.sent_signal} />
+      {/* Conviction Scores */}
+      {convictionData && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', gap: 12, fontSize: 9 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                <span style={{ color: 'var(--sell)', fontWeight: 500 }}>SELL</span>
+                <span className="mono" style={{ color: 'var(--text2)' }}>{convictionData.sell?.toFixed(1)}</span>
+              </div>
+              <div className="progress-track" style={{ height: 2 }}>
+                <div className="progress-fill" style={{ width: `${(convictionData.sell/4)*100}%`, background: 'var(--sell)', opacity: 0.7, height: 2 }} />
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                <span style={{ color: 'var(--buy)', fontWeight: 500 }}>BUY</span>
+                <span className="mono" style={{ color: 'var(--text2)' }}>{convictionData.buy?.toFixed(1)}</span>
+              </div>
+              <div className="progress-track" style={{ height: 2 }}>
+                <div className="progress-fill" style={{ width: `${(convictionData.buy/4)*100}%`, background: 'var(--buy)', opacity: 0.7, height: 2 }} />
+              </div>
+            </div>
+          </div>
+          {(convictionData.symmetry_active || convictionData.tokyo_active) && (
+            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+              {convictionData.symmetry_active && <span className="badge" style={{ background: 'var(--amber)15', color: 'var(--amber)', fontSize: 7 }}>SYM</span>}
+              {convictionData.tokyo_active && <span className="badge" style={{ background: 'var(--cyan)15', color: 'var(--cyan)', fontSize: 7 }}>TKY</span>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Agent Pills */}
+      <div style={{ display: 'flex', gap: 5, marginBottom: hasAnalystPackets ? 8 : 0 }}>
+        <AgentPill label="MACRO" value={signal.macro_regime} color="var(--macro)" />
+        <AgentPill label="TECH" value={signal.tech_signal} color="var(--tech)" />
+        <AgentPill label="SENT" value={signal.sent_signal} color="var(--sent)" />
       </div>
 
-      {/* Time remaining */}
-      {liveContext?.time_remaining && (
-        <div style={{
-          marginTop: 12,
-          paddingTop: 12,
-          borderTop: '1px solid var(--border)',
-          fontSize: 10,
-          color: 'var(--text3)',
-          textAlign: 'center',
+      {/* Reasoning Preview */}
+      {signal.reasoning && (
+        <div style={{ fontSize: 10, color: 'var(--text2)', lineHeight: 1.5, fontStyle: 'italic', opacity: 0.75, flex: 1 }}>
+          {signal.reasoning.slice(0, 100)}{signal.reasoning.length > 100 ? '...' : ''}
+        </div>
+      )}
+
+      {/* Expand Button */}
+      {hasAnalystPackets && (
+        <button onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }} style={{
+          width: '100%', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 6,
+          padding: '6px 10px', color: 'var(--text2)', fontSize: 9, fontWeight: 600, cursor: 'pointer',
+          textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 'auto',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
         }}>
-          {liveContext.time_remaining}
+          {expanded ? '▼ Hide' : '▶'} Analyst Breakdown
+        </button>
+      )}
+
+      {/* Analyst Sub-cards */}
+      {expanded && hasAnalystPackets && (
+        <div className="animate-slide-up" style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {macroAgent && <AnalystSubCard data={macroAgent} color="var(--macro)" label="Macro" />}
+          {techAgent && <AnalystSubCard data={techAgent} color="var(--tech)" label="Technical" />}
+          {sentAgent && <AnalystSubCard data={sentAgent} color="var(--sent)" label="Sentiment" />}
+        </div>
+      )}
+
+      {/* Risk Note */}
+      {signal.risk_note && (
+        <div style={{ marginTop: 10, padding: '6px 8px', background: 'var(--sell)06', border: '1px solid var(--sell)18', borderRadius: 6, fontSize: 9, color: 'var(--sell)', lineHeight: 1.4 }}>
+          ⚠ {signal.risk_note}
         </div>
       )}
     </div>
   );
 }
 
-function AgentPill({ label, signal }: { label: string; signal: string }) {
-  const signalUpper = signal.toUpperCase();
-  const color = 
-    signalUpper.includes('BUY') || signalUpper.includes('BULLISH') ? 'var(--green)' :
-    signalUpper.includes('SELL') || signalUpper.includes('BEARISH') ? 'var(--red)' :
-    'var(--text3)';
-
+function AgentPill({ label, value, color }: { label: string; value: string; color: string }) {
+  const v = (value || '').toUpperCase();
+  const active = v.includes('BUY') || v.includes('BULL');
+  const negative = v.includes('SELL') || v.includes('BEAR');
   return (
-    <div style={{
-      background: 'var(--bg3)',
-      border: `1px solid ${color}40`,
-      borderRadius: 12,
-      padding: '4px 10px',
-      fontSize: 10,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 6,
-    }}>
-      <span style={{ color: 'var(--text3)', fontWeight: 500 }}>{label}</span>
-      <span style={{ color, fontWeight: 600 }}>{signal}</span>
+    <div style={{ background: 'var(--bg3)', border: `1px solid ${color}30`, borderRadius: 12, padding: '3px 8px', fontSize: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+      <span style={{ color: 'var(--text3)' }}>{label}</span>
+      <div style={{ width: 4, height: 4, borderRadius: '50%', background: active ? 'var(--buy)' : negative ? 'var(--sell)' : 'var(--hold)' }} />
+      <span style={{ color: active ? 'var(--buy)' : negative ? 'var(--sell)' : 'var(--text2)' }}>{value}</span>
+    </div>
+  );
+}
+
+function AnalystSubCard({ data, color, label }: { data: any; color: string; label: string }) {
+  const safeConf = data.llm_conf || 0;
+  return (
+    <div style={{ background: 'var(--bg2)', border: `1px solid ${color}20`, borderLeft: `2px solid ${color}`, borderRadius: 5, padding: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ fontSize: 9, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
+          {data.override_flag && <span className="badge" style={{ background: 'var(--amber)15', color: 'var(--amber)', fontSize: 6 }}>OVERRIDE</span>}
+        </div>
+        <span className="mono" style={{ fontSize: 9, color: 'var(--text2)' }}>{data.llm_signal} · {(safeConf * 100).toFixed(0)}%</span>
+      </div>
+      {data.reasoning && <div style={{ fontSize: 9.5, color: 'var(--text2)', lineHeight: 1.5, marginBottom: 6, fontStyle: 'italic' }}>{data.reasoning}</div>}
+      {data.key_drivers?.length > 0 && (
+        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginBottom: 4 }}>
+          {data.key_drivers.map((d: string, i: number) => (
+            <span key={i} className="badge" style={{ background: color + '10', color, fontSize: 7, border: `1px solid ${color}15` }}>{d}</span>
+          ))}
+        </div>
+      )}
+      {data.risk_flags?.length > 0 && (
+        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+          {data.risk_flags.map((f: string, i: number) => (
+            <span key={i} className="badge" style={{ background: 'var(--sell)08', color: 'var(--sell)', fontSize: 7, border: '1px solid var(--sell)12' }}>{f}</span>
+          ))}
+        </div>
+      )}
+      {data.override_reason && <div style={{ marginTop: 4, fontSize: 8, color: 'var(--amber)', fontStyle: 'italic' }}>Reason: {data.override_reason}</div>}
     </div>
   );
 }

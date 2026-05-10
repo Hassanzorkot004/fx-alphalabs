@@ -1,231 +1,234 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { ChatMessage, Signal } from '../Types';
 import { API_BASE_URL } from '../config/constants';
 
-interface AlphaBotState {
+const HISTORY_KEY = 'alphabot_chat_history';
+const MAX_THREADS = 20;
+
+// ── Types ──────────────────────────────────────────────────────────────────
+interface ChatThread {
+  id: string;
+  pair: string;
+  title: string;
   messages: ChatMessage[];
-  isLoading: boolean;
-  error: string | null;
-  mode: 'simple' | 'pro';
+  createdAt: string;
+  updatedAt: string;
 }
 
-export function useAlphaBot(pair: string, signal: Signal | null, useStreaming: boolean = true) {
-  // Load default mode from settings
-  const getInitialMode = (): 'simple' | 'pro' => {
-    try {
-      const stored = localStorage.getItem('fx-alphalab-settings');
-      if (stored) {
-        const settings = JSON.parse(stored);
-        return settings.defaultMode || 'simple';
-      }
-    } catch (err) {
-      console.error('Failed to load default mode:', err);
-    }
-    return 'simple';
-  };
+// ── localStorage helpers ──────────────────────────────────────────────────
+function loadThreads(): ChatThread[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
 
-  const [state, setState] = useState<AlphaBotState>({
-    messages: [],
-    isLoading: false,
-    error: null,
-    mode: getInitialMode(),
+function saveThreads(threads: ChatThread[]) {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(threads.slice(0, MAX_THREADS)));
+  } catch {}
+}
+
+// ── Hook ───────────────────────────────────────────────────────────────────
+export function useAlphaBot(pair: string, signal: Signal | null) {
+  const [threads, setThreads] = useState<ChatThread[]>(loadThreads);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<'simple' | 'pro'>(() => {
+    try { return localStorage.getItem('alphabot_chat_mode') === 'pro' ? 'pro' : 'simple'; }
+    catch { return 'simple'; }
   });
+  const pairRef = useRef(pair);
+  pairRef.current = pair;
 
-  // Auto-send welcome message when pair changes
-  useEffect(() => {
-    if (signal) {
-      const welcomeMessage = formatWelcomeMessage(signal);
-      setState(prev => ({
-        ...prev,
-        messages: [{ role: 'assistant', content: welcomeMessage }],
-      }));
-    } else {
-      setState(prev => ({ ...prev, messages: [] }));
+  // Get active thread
+  const activeThread = threads.find(t => t.id === activeThreadId) || null;
+  const messages = activeThread?.messages || [];
+
+  // Persist threads on change
+  useEffect(() => { saveThreads(threads); }, [threads]);
+
+  // Create new thread if none active
+  const ensureThread = useCallback(() => {
+    if (!activeThreadId) {
+      const cleanPair = pairRef.current.replace('=X', '');
+      const newThread: ChatThread = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        pair: cleanPair,
+        title: `${cleanPair} Chat`,
+        messages: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setThreads(prev => [newThread, ...prev]);
+      setActiveThreadId(newThread.id);
+      return newThread.id;
     }
-  }, [pair, signal]); // Depend on both pair AND signal
+    return activeThreadId;
+  }, [activeThreadId]);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
 
+    const threadId = ensureThread();
     const userMessage: ChatMessage = { role: 'user', content };
-    
-    setState(prev => ({
-      ...prev,
-      messages: [...prev.messages, userMessage],
-      isLoading: true,
-      error: null,
+    const currentPair = pairRef.current;
+
+    // Add user message to thread
+    setThreads(prev => prev.map(t => {
+      if (t.id === threadId) {
+        const title = t.messages.length === 0
+          ? content.slice(0, 40) + (content.length > 40 ? '...' : '')
+          : t.title;
+        return {
+          ...t,
+          title,
+          messages: [...t.messages, userMessage],
+          pair: currentPair.replace('=X', ''),
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return t;
     }));
 
-    if (useStreaming) {
-      // Streaming mode
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/alphabot/chat/stream`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            pair,
-            message: content,
-            mode: state.mode,
-            history: state.messages,
-          }),
-        });
+    setIsLoading(true);
+    setError(null);
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/alphabot/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pair: currentPair,
+          message: content,
+          mode,
+          history: (activeThread?.messages || []).slice(-10),
+        }),
+      });
 
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        let accumulatedContent = '';
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedContent = '';
 
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
+      if (reader) {
+        // Add empty assistant placeholder
+        setThreads(prev => prev.map(t => {
+          if (t.id === threadId) {
+            return { ...t, messages: [...t.messages, { role: 'assistant', content: '' }], updatedAt: new Date().toISOString() };
+          }
+          return t;
+        }));
 
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.slice(6));
-                  
-                  if (data.error) {
-                    setState(prev => ({
-                      ...prev,
-                      error: data.error,
-                      isLoading: false,
-                    }));
-                    return;
-                  }
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-                  if (data.content) {
-                    accumulatedContent += data.content;
-                    
-                    // Update the last message (bot's response) in real-time
-                    setState(prev => {
-                      const newMessages = [...prev.messages];
-                      const lastMsg = newMessages[newMessages.length - 1];
-                      
-                      if (lastMsg && lastMsg.role === 'assistant') {
-                        // Update existing assistant message
-                        newMessages[newMessages.length - 1] = {
-                          role: 'assistant',
-                          content: accumulatedContent,
-                        };
-                      } else {
-                        // Add new assistant message
-                        newMessages.push({
-                          role: 'assistant',
-                          content: accumulatedContent,
-                        });
-                      }
-                      
-                      return {
-                        ...prev,
-                        messages: newMessages,
-                        isLoading: !data.done,
-                      };
-                    });
-                  }
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
 
-                  if (data.done) {
-                    setState(prev => ({ ...prev, isLoading: false }));
-                    return;
-                  }
-                } catch (e) {
-                  // Ignore parse errors for incomplete chunks
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                if (data.error) {
+                  setError(data.error);
+                  setIsLoading(false);
+                  return;
                 }
-              }
+
+                if (data.content) {
+                  accumulatedContent += data.content;
+                  setThreads(prev => prev.map(t => {
+                    if (t.id === threadId) {
+                      const msgs = [...t.messages];
+                      msgs[msgs.length - 1] = { role: 'assistant', content: accumulatedContent };
+                      return { ...t, messages: msgs, updatedAt: new Date().toISOString() };
+                    }
+                    return t;
+                  }));
+                }
+
+                if (data.done) {
+                  setIsLoading(false);
+                  return;
+                }
+              } catch { /* skip incomplete chunks */ }
             }
           }
         }
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Failed to reach AlphaBot';
-        setState(prev => ({
-          ...prev,
-          error: errorMsg,
-          isLoading: false,
-        }));
       }
-    } else {
-      // Non-streaming mode (fallback)
+    } catch (err) {
+      // Fallback non-streaming
       try {
         const response = await fetch(`${API_BASE_URL}/api/alphabot/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            pair,
-            message: content,
-            mode: state.mode,
-            history: state.messages,
-          }),
+          body: JSON.stringify({ pair: currentPair, message: content, mode, history: (activeThread?.messages || []).slice(-10) }),
         });
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        const botMessage: ChatMessage = { role: 'assistant', content: data.reply };
-
-        setState(prev => ({
-          ...prev,
-          messages: [...prev.messages, botMessage],
-          isLoading: false,
+        setThreads(prev => prev.map(t => {
+          if (t.id === threadId) {
+            return { ...t, messages: [...t.messages, { role: 'assistant', content: data.reply }], updatedAt: new Date().toISOString() };
+          }
+          return t;
         }));
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Failed to reach AlphaBot';
-        setState(prev => ({
-          ...prev,
-          error: errorMsg,
-          isLoading: false,
-        }));
+      } catch (e) {
+        setError(err instanceof Error ? err.message : 'Failed to reach AlphaBot');
       }
+      setIsLoading(false);
     }
-  }, [pair, state.mode, state.messages, useStreaming]);
+  }, [ensureThread, mode, activeThread]);
 
-  const toggleMode = useCallback(() => {
-    setState(prev => ({
-      ...prev,
-      mode: prev.mode === 'simple' ? 'pro' : 'simple',
-    }));
+  const switchThread = useCallback((threadId: string) => {
+    setActiveThreadId(threadId);
   }, []);
 
+  const deleteThread = useCallback((threadId: string) => {
+    setThreads(prev => {
+      const filtered = prev.filter(t => t.id !== threadId);
+      if (activeThreadId === threadId) {
+        setActiveThreadId(filtered[0]?.id || null);
+      }
+      return filtered;
+    });
+  }, [activeThreadId]);
+
   const clearChat = useCallback(() => {
-    setState(prev => ({
-      ...prev,
-      messages: [],
-      error: null,
-    }));
+    setThreads([]);
+    setActiveThreadId(null);
+    localStorage.removeItem(HISTORY_KEY);
+  }, []);
+
+  const toggleMode = useCallback(() => {
+    setMode(prev => {
+      const next = prev === 'simple' ? 'pro' : 'simple';
+      localStorage.setItem('alphabot_chat_mode', next);
+      return next;
+    });
+  }, []);
+
+  // Start a fresh thread when user sends from news/event click
+  const startNewThread = useCallback(() => {
+    setActiveThreadId(null);
   }, []);
 
   return {
-    messages: state.messages,
-    isLoading: state.isLoading,
-    error: state.error,
-    mode: state.mode,
+    messages,
+    threads,
+    activeThreadId,
+    isLoading,
+    error,
+    mode,
     sendMessage,
     toggleMode,
     clearChat,
+    switchThread,
+    deleteThread,
+    startNewThread,
   };
 }
-
-function formatWelcomeMessage(signal: Signal): string {
-  const pairName = signal.pair.replace('=X', '');
-  const direction = signal.direction;
-  const confidence = Math.round(signal.confidence * 100);
-  
-  const ageHours = signal.age_hours || 0;
-  const ageText = ageHours < 1 
-    ? 'just now' 
-    : ageHours < 2 
-    ? `${Math.round(ageHours * 60)} min ago`
-    : `${Math.round(ageHours)}h ago`;
-
-  return `We have a ${direction} signal for ${pairName}, but our confidence is only ${confidence}%, which is relatively low. This means we're not extremely sure about the direction.
-
-The reason for the ${direction} signal is that ${signal.reasoning}`;
-}
-

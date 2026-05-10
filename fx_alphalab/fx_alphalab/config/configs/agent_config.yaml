@@ -32,8 +32,10 @@ paths:
 #   system_prompt:   "unused — defined in orchestrator.py"
 
 llm:
-  provider: "groq"
-  model: "llama-3.3-70b-versatile"
+  provider: "hosted_ollama"
+  model: "hosted_vllm/Llama-3.1-70B-Instruct"
+  base_url: "https://tokenfactory.esprit.tn/api"
+  api_key_env: "OLLAMA_API_KEY"
   groq_api_key: "${GROQ_API_KEY}"  # Set in .env file
   host: "http://localhost:11434"
   temperature: 0.1

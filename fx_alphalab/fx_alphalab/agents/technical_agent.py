@@ -127,6 +127,8 @@ class TechnicalAgent:
         self._scaler:  Optional[RobustScaler] = None
         self._pairs:   List[str]              = []
         self.fitted    = False
+        # Cache for pre-fetched results (used by LLM tool)
+        self._cached_result: Optional[dict] = None
 
     def _build_sequences(self, X: np.ndarray, y: np.ndarray
                          ) -> Tuple[np.ndarray, np.ndarray]:
@@ -292,6 +294,64 @@ class TechnicalAgent:
             "signal":      signal,
         }
 
+    # ── LLM Tool Interface ──────────────────────────────────────────────────
+
+    TECHNICAL_TOOL_SCHEMA = {
+        "type": "function",
+        "function": {
+            "name": "run_technical_model",
+            "description": (
+                "Run the TCN+LSTM technical model for a currency pair. "
+                "Returns BUY/SELL/HOLD signal with probability distribution "
+                "and confidence score. The model uses a 48-bar window of "
+                "technical indicators pre-fetched before the LLM loop."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pair": {
+                        "type": "string",
+                        "description": "Currency pair name, e.g. EURUSD"
+                    }
+                },
+                "required": ["pair"]
+            }
+        }
+    }
+
+    def run_technical_tool(self, pair: str) -> dict:
+        """
+        Called by the LLM orchestrator when it invokes the 'run_technical_model' tool.
+        Returns the pre-cached result from predict_live().
+        The orchestrator MUST call pre_cache_result() before the LLM loop starts.
+        """
+        if self._cached_result is None:
+            return {
+                "error": "Technical model not pre-cached. Call pre_cache_result() first.",
+                "signal": "HOLD",
+                "confidence": 0.0,
+            }
+        result = self._cached_result
+        return {
+            "signal": result["signal"],
+            "direction": result["direction"],
+            "confidence": round(result["confidence"], 4),
+            "uncertainty": round(result["uncertainty"], 4),
+            "probability_buy": round(result["p_buy"], 4),
+            "probability_hold": round(result["p_hold"], 4),
+            "probability_sell": round(result["p_sell"], 4),
+        }
+
+    def pre_cache_result(self, df: pd.DataFrame) -> dict:
+        """
+        Pre-fetch: run predict_live() and cache the result.
+        Call this BEFORE the LLM loop so the tool returns instantly.
+        """
+        self._cached_result = self.predict_live(df)
+        return self._cached_result
+
+    # ── Persistence ───────────────────────────────────────────────────────────
+
     def save(self) -> None:
         self.model_dir.mkdir(parents=True, exist_ok=True)
         with open(self.model_dir / "tech_scaler.pkl", "wb") as f:
@@ -323,3 +383,62 @@ class TechnicalAgent:
             f"{list(self._models.keys())}"
         )
         return self
+
+
+# ── Quick self-test ───────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    import yaml
+
+    print("🧪 Testing TechnicalAgent LLM tool wrapper...")
+
+    dates = pd.date_range("2024-01-01", periods=200, freq="h")
+    np.random.seed(42)
+    df = pd.DataFrame({
+        "pair": ["EURUSD"] * 200,
+        "rsi14": np.random.uniform(20, 80, 200),
+        "rsi28": np.random.uniform(20, 80, 200),
+        "macd_norm": np.random.normal(0, 1, 200),
+        "macd_hist": np.random.normal(0, 0.5, 200),
+        "roc1": np.random.normal(0, 0.01, 200),
+        "roc3": np.random.normal(0, 0.02, 200),
+        "roc5": np.random.normal(0, 0.03, 200),
+        "atr_pct": np.random.uniform(0.1, 2, 200),
+        "atr_ratio": np.random.uniform(0.5, 1.5, 200),
+        "bb_pos": np.random.uniform(0, 1, 200),
+        "bb_width": np.random.uniform(0.5, 3, 200),
+        "ema_cross": np.random.choice([-1, 0, 1], 200),
+        "price_vs_ema50": np.random.normal(0, 0.02, 200),
+        "sma10_slope": np.random.normal(0, 0.001, 200),
+        "vol_ratio": np.random.uniform(0.5, 2, 200),
+        "cmf": np.random.normal(0, 0.1, 200),
+        "body_ratio": np.random.uniform(0, 1, 200),
+        "upper_shadow": np.random.uniform(0, 0.5, 200),
+        "lower_shadow": np.random.uniform(0, 0.5, 200),
+        "hour_sin": np.sin(np.linspace(0, 24*np.pi, 200)),
+        "hour_cos": np.cos(np.linspace(0, 24*np.pi, 200)),
+        "dow_sin": np.sin(np.linspace(0, 7*np.pi, 200)),
+        "dow_cos": np.cos(np.linspace(0, 7*np.pi, 200)),
+        "target": np.random.choice([-1, 0, 1], 200),
+    })
+
+    cfg = yaml.safe_load("""
+    paths:
+      tech_model: /tmp/test_tech_model
+    technical:
+      window_bars: 48
+      hidden: 64
+      dropout: 0.2
+    """)
+
+    agent = TechnicalAgent(cfg)
+    agent.fit(df, epochs=5)
+
+    # Pre-cache result (simulates what orchestrator does before LLM loop)
+    result = agent.pre_cache_result(df.iloc[-60:])
+    print(f"✅ predict_live() signal: {result['signal']}, conf: {result['confidence']:.4f}")
+
+    # Test LLM tool wrapper
+    tool_result = agent.run_technical_tool("EURUSD")
+    print(f"✅ run_technical_tool() signal: {tool_result['signal']}, conf: {tool_result['confidence']}")
+    print(f"   Probs: BUY={tool_result['probability_buy']} HOLD={tool_result['probability_hold']} SELL={tool_result['probability_sell']}")
+    print("✅ TechnicalAgent LLM tool wrapper works!")

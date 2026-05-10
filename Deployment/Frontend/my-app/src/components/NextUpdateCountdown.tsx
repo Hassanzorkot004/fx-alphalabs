@@ -1,85 +1,27 @@
 import { useState, useEffect } from 'react';
 
-interface NextUpdateCountdownProps {
-  nextCycleSeconds: number | null;
-}
-
-export default function NextUpdateCountdown({ nextCycleSeconds }: NextUpdateCountdownProps) {
+export default function NextUpdateCountdown({ nextCycleSeconds }: { nextCycleSeconds: number | null }) {
   const [remaining, setRemaining] = useState(nextCycleSeconds || 0);
 
-  useEffect(() => {
-    if (nextCycleSeconds !== null) {
-      setRemaining(nextCycleSeconds);
-    }
-  }, [nextCycleSeconds]);
+  useEffect(() => { if (nextCycleSeconds !== null) setRemaining(nextCycleSeconds); }, [nextCycleSeconds]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setRemaining(prev => Math.max(0, prev - 1));
-    }, 1000);
-
-    return () => clearInterval(interval);
+    const iv = setInterval(() => setRemaining(p => Math.max(0, p - 1)), 1000);
+    return () => clearInterval(iv);
   }, []);
 
-  if (remaining <= 0) {
-    return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '6px 12px',
-        background: 'var(--amber)20',
-        border: '1px solid var(--amber)40',
-        borderRadius: 6,
-      }}>
-        <div style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: 'var(--amber)',
-        }}
-        className="animate-pulse-dot"
-        />
-        <span className="mono" style={{ fontSize: 11, color: 'var(--amber)', fontWeight: 500 }}>
-          Updating signals...
-        </span>
-      </div>
-    );
-  }
-
-  const minutes = Math.floor(remaining / 60);
-  const seconds = remaining % 60;
-  const progress = nextCycleSeconds ? ((nextCycleSeconds - remaining) / nextCycleSeconds) * 100 : 0;
+  const m = Math.floor(remaining / 60);
+  const s = remaining % 60;
+  const pct = nextCycleSeconds ? ((nextCycleSeconds - remaining) / nextCycleSeconds) * 100 : 0;
 
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 12,
-      padding: '6px 12px',
-      background: 'var(--bg2)',
-      border: '1px solid var(--border)',
-      borderRadius: 6,
-    }}>
-      <span className="mono" style={{ fontSize: 11, color: 'var(--text3)' }}>
-        Next update in
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 10px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 6 }}>
+      <span className="mono" style={{ fontSize: 9, color: 'var(--text3)' }}>NEXT</span>
+      <span className="mono" style={{ fontSize: 11, color: 'var(--cyan)', fontWeight: 600 }}>
+        {m}:{s.toString().padStart(2, '0')}
       </span>
-      <span className="mono" style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600 }}>
-        {minutes}:{seconds.toString().padStart(2, '0')}
-      </span>
-      <div style={{
-        width: 60,
-        height: 4,
-        background: 'var(--bg4)',
-        borderRadius: 2,
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          height: '100%',
-          width: `${progress}%`,
-          background: 'linear-gradient(90deg, var(--amber), var(--amber)80)',
-          transition: 'width 1s linear',
-        }} />
+      <div className="progress-track" style={{ width: 50 }}>
+        <div className="progress-fill" style={{ width: `${pct}%`, background: 'var(--cyan)' }} />
       </div>
     </div>
   );

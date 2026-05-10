@@ -10,7 +10,14 @@ import pandas as pd
 from loguru import logger
 
 from app.config import settings
+import math
 
+def _clean_nan(d: dict) -> dict:
+    """Replace NaN float values with None for JSON compliance."""
+    for k, v in d.items():
+        if isinstance(v, float) and math.isnan(v):
+            d[k] = None
+    return d
 
 class SignalStore:
     """Manages signal state and CSV file operations"""
@@ -64,6 +71,7 @@ class SignalStore:
                 df = df.sort_values("timestamp", ascending=False)
             
             all_signals = df.to_dict(orient="records")
+            all_signals = [_clean_nan(s) for s in all_signals]
             logger.debug(f"load_from_csv: converted to {len(all_signals)} signal dicts")
             
             with self.lock:
@@ -94,6 +102,8 @@ class SignalStore:
                 self.last_signals = [x for x in self.last_signals 
                                       if str(x.get("pair", "")) != pair]
                 self.last_signals.append(s)
+                for s in signals:
+                    clean_nan(s)
             
             # Append to history if active (position_size > 0)
             for s in signals:

@@ -6,16 +6,11 @@ from typing import Dict, List, Optional
 from loguru import logger
 
 try:
-    from fx_alphalab import AgentRunner
+    from fx_alphalab.core.runner import AgentRunner
     FX_ALPHALAB_AVAILABLE = True
 except ImportError:
     FX_ALPHALAB_AVAILABLE = False
-    logger.warning(
-        "fx_alphalab not installed. "
-        "Install with: pip install -e ../../fx_alphalab"
-    )
-
-
+    logger.warning("fx_alphalab not installed. Run: pip install -e ../../fx_alphalab")
 class AgentService:
     """Manages agent execution for the backend"""
     

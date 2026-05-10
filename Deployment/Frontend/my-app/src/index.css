@@ -1,35 +1,44 @@
 @import "tailwindcss";
-@import "@fontsource/ibm-plex-mono/400.css";
-@import "@fontsource/ibm-plex-mono/500.css";
-@import "@fontsource/ibm-plex-mono/600.css";
-@import "@fontsource/ibm-plex-sans/400.css";
-@import "@fontsource/ibm-plex-sans/500.css";
-@import "@fontsource/ibm-plex-sans/600.css";
 
 :root {
-  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  /* FX AlphaLab color palette */
-  --bg:      #0a0906;
-  --bg1:     #0f0d0a;
-  --bg2:     #141210;
-  --bg3:     #1c1916;
-  --bg4:     #242018;
-  --border:  #2a2520;
-  --border2: #3a332a;
-  --amber:   #e8a030;
-  --amber2:  #c8841a;
-  --text:    #e8e0d0;
-  --text2:   #a09080;
-  --text3:   #605848;
-  --green:   #3db87a;
-  --red:     #d45c4a;
-  --blue:    #5a9fd4;
+  /* ── Deep Space Palette ──────────────────────────── */
+  --bg:      #060b14;
+  --bg1:     #0a1020;
+  --bg2:     #0e1629;
+  --bg3:     #121c33;
+  --bg4:     #162240;
+  --border:  #1a2a4a;
+  --border2: #243860;
+
+  /* ── Neon Accents ────────────────────────────────── */
+  --cyan:    #00e5ff;
+  --magenta: #ff1744;
+  --amber:   #ffab00;
+  --emerald: #00e676;
+  --violet:  #b388ff;
+  --gold:    #ffd740;
+
+  /* ── Agent Colors ────────────────────────────────── */
+  --macro:   #b388ff;
+  --tech:    #00e5ff;
+  --sent:    #ff6e40;
+
+  /* ── Semantic ────────────────────────────────────── */
+  --buy:     #00e676;
+  --sell:    #ff1744;
+  --hold:    #607d8b;
+
+  /* ── Text ────────────────────────────────────────── */
+  --text:    #e8edf5;
+  --text2:   #8899b4;
+  --text3:   #445570;
 
   color-scheme: dark;
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 13px;
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
@@ -37,55 +46,97 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-body { background: var(--bg); }
-
-#root {
-  min-height: 100svh;
-  width: 100%;
-  max-width: 100%;
-  text-align: left;
-  border: none;
-  display: block;
+body {
+  background: var(--bg);
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(0,229,255,0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(179,136,255,0.03) 0%, transparent 50%);
 }
+
+#root { min-height: 100svh; width: 100%; }
 
 .mono { font-family: var(--font-mono); }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--amber2); }
+/* ── Scrollbar ────────────────────────────────────── */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
 
-/* Animations */
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.3; }
-}
-@keyframes slide-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes price-flash-green {
-  0%   { background-color: rgba(61, 184, 122, 0.2); }
-  100% { background-color: transparent; }
-}
-@keyframes price-flash-red {
-  0%   { background-color: rgba(212, 92, 74, 0.2); }
-  100% { background-color: transparent; }
+/* ── Animations ───────────────────────────────────── */
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.5} }
+@keyframes slideUp { from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)} }
+@keyframes fadeIn { from{opacity:0}to{opacity:1} }
+@keyframes glowPulse { 0%,100%{box-shadow:0 0 8px rgba(0,229,255,.1)}50%{box-shadow:0 0 20px rgba(0,229,255,.2)} }
+@keyframes tickGreen { 0%{background:rgba(0,230,118,.15)}100%{background:transparent} }
+@keyframes tickRed { 0%{background:rgba(255,23,68,.15)}100%{background:transparent} }
+@keyframes scanLine { 0%{transform:translateY(-100%)}100%{transform:translateY(100%)} }
+
+.animate-pulse { animation: pulse 1.5s ease-in-out infinite; }
+.animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1) forwards; }
+.animate-fade-in { animation: fadeIn 0.3s ease forwards; }
+.animate-tick-green { animation: tickGreen 0.5s ease; }
+.animate-tick-red { animation: tickRed 0.5s ease; }
+
+/* ── Glass Panel ──────────────────────────────────── */
+.glass {
+  background: rgba(14,22,41,0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
 }
 
-.animate-pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
-.animate-slide-up  { animation: slide-up 0.3s ease forwards; }
-.animate-fade-in   { animation: fade-in 0.4s ease forwards; }
-.animate-flash-green { animation: price-flash-green 0.6s ease; }
-.animate-flash-red   { animation: price-flash-red 0.6s ease; }
+/* ── Card Glow ────────────────────────────────────── */
+.card-glow {
+  transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+}
+.card-glow:hover {
+  border-color: var(--border2) !important;
+  box-shadow: 0 4px 30px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,229,255,0.06);
+}
+.card-glow.selected {
+  border-color: var(--cyan) !important;
+  box-shadow: 0 0 30px rgba(0,229,255,0.08), 0 0 0 1px rgba(0,229,255,0.15);
+  animation: glowPulse 3s ease-in-out infinite;
+}
 
-/* Hover hints for clickable items */
-div:hover > .article-hint,
-div:hover > .event-hint {
-  opacity: 1 !important;
+/* ── Badge ────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.badge-outline {
+  background: transparent;
+  border: 1px solid currentColor;
+}
+
+/* ── Progress Bars ────────────────────────────────── */
+.progress-track {
+  height: 3px;
+  background: var(--bg4);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+}
+
+/* ── Scan line effect on cards ────────────────────── */
+.scan-line::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(transparent 50%, rgba(0,229,255,0.01) 50%);
+  background-size: 100% 4px;
+  pointer-events: none;
+  opacity: 0.3;
 }

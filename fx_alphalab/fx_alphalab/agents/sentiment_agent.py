@@ -65,6 +65,25 @@ BEAR_THRESHOLD = -0.12  # sent_signal < -0.12 → lean SELL
 
 class SentimentAgent:
 
+    # ── LLM Tool Schema ─────────────────────────────────────────────────────
+    SENTIMENT_TOOL_SCHEMA = {
+        "type": "function",
+        "function": {
+            "name": "run_sentiment_model",
+            "description": (
+                "Run the sentiment analysis model on current news features. "
+                "Returns BUY/SELL/HOLD signal with probability distribution, "
+                "confidence, and uncertainty. Handles low-news conditions by "
+                "returning HOLD."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    }
+
     def __init__(self, cfg: dict):
         self.model_dir = Path(cfg["paths"]["sent_model"])
         self._scaler:  Optional[RobustScaler]       = None
@@ -172,7 +191,6 @@ class SentimentAgent:
             # Only act on calibrator if it's confident enough
             max_p = max(p_buy, p_sell)
             if max_p < 0.45:
-                # Calibrator is uncertain → HOLD
                 return {
                     "direction":   0,
                     "p_buy":       round(p_buy, 3),
@@ -211,6 +229,26 @@ class SentimentAgent:
             "signal":      "HOLD",
         }
 
+    # ── LLM Tool Interface ──────────────────────────────────────────────────
+
+    def run_sentiment_tool(self, nws_features: Dict) -> dict:
+        """
+        Called by the LLM orchestrator when it invokes the 'run_sentiment_model' tool.
+        Wraps predict_live() and returns a clean dict for the LLM to read.
+        """
+        result = self.predict_live(nws_features)
+        return {
+            "signal": result["signal"],
+            "direction": result["direction"],
+            "confidence": result["confidence"],
+            "uncertainty": result["uncertainty"],
+            "probability_buy": result["p_buy"],
+            "probability_hold": result["p_hold"],
+            "probability_sell": result["p_sell"],
+        }
+
+    # ── Persistence ───────────────────────────────────────────────────────────
+
     def save(self) -> None:
         self.model_dir.mkdir(parents=True, exist_ok=True)
         with open(self.model_dir / "sent_model.pkl", "wb") as f:
@@ -230,3 +268,44 @@ class SentimentAgent:
         self.fitted  = state["fitted"]
         logger.info(f"SentimentAgent loaded from {self.model_dir}")
         return self
+
+
+# ── Quick self-test ───────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    import yaml
+
+    print("🧪 Testing SentimentAgent LLM tool wrapper...")
+
+    # Create dummy sentiment features
+    nws_features = {
+        "nws_news_flow": 15,
+        "nws_sent_signal": 0.35,
+        "nws_sent_mom": 0.05,
+        "nws_sent_fast": 0.40,
+        "nws_sent_slow": 0.15,
+        "nws_sent_pressure": 0.20,
+        "nws_pressure_change": 0.02,
+        "nws_flow_accel": 0.01,
+        "nws_flow_imbalance": 0.08,
+        "nws_trend_strength": 0.30,
+    }
+
+    cfg = yaml.safe_load("""
+    paths:
+      sent_model: /tmp/test_sent_model
+    """)
+
+    # Test with unfitted agent (should use lexical signal directly)
+    agent = SentimentAgent(cfg)
+    result = agent.predict_live(nws_features)
+    print(f"✅ predict_live() (unfitted) signal: {result['signal']}, conf: {result['confidence']}")
+
+    tool_result = agent.run_sentiment_tool(nws_features)
+    print(f"✅ run_sentiment_tool() signal: {tool_result['signal']}, conf: {tool_result['confidence']}")
+
+    # Test with low news
+    low_news = {"nws_news_flow": 1, "nws_sent_signal": 0.0}
+    result2 = agent.predict_live(low_news)
+    print(f"✅ Low-news signal: {result2['signal']}")
+
+    print("✅ SentimentAgent LLM tool wrapper works!")

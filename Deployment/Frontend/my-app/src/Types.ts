@@ -12,6 +12,19 @@ export interface Signal {
   source:          string;
   timestamp:       string;
 
+  // NEW: Pipeline orchestrator fields
+  key_driver?:     string;
+  risk_note?:      string;
+  headline?:       string;
+  narrative?:      string;
+  suppressed_by_regime?: boolean;
+
+  // NEW: 5-Stage Pipeline — Analyst Packets
+  macro_agent?:    AnalystPacketData;
+  tech_agent?:     AnalystPacketData;
+  sent_agent?:     AnalystPacketData;
+  conviction_data?: ConvictionData;
+
   // Price & trade levels
   price_at_signal?: number;
   atr?:             number;
@@ -48,7 +61,52 @@ export interface Signal {
   lifecycle_status?:  'active' | 'near_expiry' | 'expired';
   horizon_hours?:     number;
   pct_elapsed?:       number;
+
+  // RAG/macro features storage
+  mac_features?: Record<string, number>;
 }
+
+// ── 5-Stage Pipeline Types ──────────────────────────────────────────────────
+
+export interface AnalystPacketData {
+  agent: string;
+  pair: string;
+  timestamp_utc: string;
+  ml_signal: string;
+  ml_conf: number;
+  ml_probs: Record<string, number>;
+  ml_raw_signal?: string;
+  corrected?: boolean;
+  correction_reason?: string;
+  conviction_sell?: number;
+  conviction_buy?: number;
+  llm_signal: string;
+  llm_conf: number;
+  reasoning: string;
+  key_drivers: string[];
+  risk_flags: string[];
+  override_flag: boolean;
+  override_reason?: string;
+  flow_dir?: string;
+  sent_dir?: string;
+  divergence?: boolean;
+  regime_label: string;
+  regime_conf: number;
+  macro_weight: number;
+  headline: string;
+  confidence_bar: number;
+  agent_color: string;
+  key_levels?: { support: string; resistance: string };
+}
+
+export interface ConvictionData {
+  sell: number;
+  buy: number;
+  symmetry_active: boolean;
+  tokyo_active: boolean;
+}
+
+// ── Existing types (unchanged) ──────────────────────────────────────────────
 
 export interface LiveContext {
   pair: string;

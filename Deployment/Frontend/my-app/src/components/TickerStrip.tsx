@@ -2,23 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import type { Price } from '../Types';
 import { PAIR_DECIMALS } from '../config/constants';
 
-interface TickerStripProps {
-  prices: Record<string, Price>;
-}
-
-export default function TickerStrip({ prices }: TickerStripProps) {
+export default function TickerStrip({ prices }: { prices: Record<string, Price> }) {
   return (
-    <div style={{
-      background: 'var(--bg1)',
-      borderBottom: '1px solid var(--border)',
-      padding: '8px 20px',
-      display: 'flex',
-      gap: 32,
-      overflowX: 'auto',
-    }}>
-      {Object.values(prices).map(price => (
-        <TickerItem key={price.pair} price={price} />
-      ))}
+    <div style={{ background: 'var(--bg1)', borderBottom: '1px solid var(--border)', padding: '6px 20px', display: 'flex', gap: 24, overflowX: 'auto' }}>
+      {Object.values(prices).map(price => <TickerItem key={price.pair} price={price} />)}
     </div>
   );
 }
@@ -26,45 +13,24 @@ export default function TickerStrip({ prices }: TickerStripProps) {
 function TickerItem({ price }: { price: Price }) {
   const pair = price.pair.replace('=X', '');
   const decimals = PAIR_DECIMALS[pair] || 5;
-  const prevPriceRef = useRef(price.price);
-  const [flashClass, setFlashClass] = useState('');
+  const prevRef = useRef(price.price);
+  const [flash, setFlash] = useState('');
 
   useEffect(() => {
-    if (price.price !== prevPriceRef.current) {
-      const direction = price.price > prevPriceRef.current ? 'green' : 'red';
-      setFlashClass(`animate-flash-${direction}`);
-      prevPriceRef.current = price.price;
-
-      const timer = setTimeout(() => setFlashClass(''), 600);
-      return () => clearTimeout(timer);
+    if (price.price !== prevRef.current) {
+      setFlash(price.price > prevRef.current ? 'animate-tick-green' : 'animate-tick-red');
+      prevRef.current = price.price;
+      const t = setTimeout(() => setFlash(''), 500);
+      return () => clearTimeout(t);
     }
   }, [price.price]);
 
-  const changeColor = price.change >= 0 ? 'var(--green)' : 'var(--red)';
-
   return (
-    <div 
-      className={flashClass}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        padding: '4px 12px',
-        borderRadius: 6,
-        transition: 'background-color 0.6s ease',
-      }}
-    >
-      <span className="mono" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-        {pair}
-      </span>
-      <span className="mono" style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>
-        {price.price.toFixed(decimals)}
-      </span>
-      <span className="mono" style={{ fontSize: 11, color: changeColor, fontWeight: 500 }}>
-        {price.change >= 0 ? '+' : ''}{price.change.toFixed(decimals)}
-      </span>
-      <span className="mono" style={{ fontSize: 11, color: changeColor }}>
-        ({price.change_pct >= 0 ? '+' : ''}{price.change_pct.toFixed(2)}%)
+    <div className={flash} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '3px 10px', borderRadius: 5 }}>
+      <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--cyan)', letterSpacing: '0.5px' }}>{pair}</span>
+      <span className="mono" style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{price.price.toFixed(decimals)}</span>
+      <span className="mono" style={{ fontSize: 10, color: price.change >= 0 ? 'var(--buy)' : 'var(--sell)', fontWeight: 500 }}>
+        {price.change >= 0 ? '+' : ''}{price.change.toFixed(decimals)} ({price.change_pct >= 0 ? '+' : ''}{price.change_pct.toFixed(2)}%)
       </span>
     </div>
   );

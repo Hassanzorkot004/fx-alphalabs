@@ -120,7 +120,6 @@ class MacroAgent:
 
         raw_labels = {s: self._label_from_scores(mean_yz[s], mean_ms[s]) for s in range(self.n_states)}
 
-        # If all clusters collapsed to same label, differentiate by macro_strength rank
         if len(set(raw_labels.values())) == 1:
             logger.warning("  All clusters same label — differentiating by macro_strength rank")
             sorted_by_ms = sorted(range(self.n_states), key=lambda s: mean_ms[s], reverse=True)
@@ -169,11 +168,9 @@ class MacroAgent:
         for raw_s, lbl in self._rank_map.items():
             ordered_probs[label_order.get(lbl, 1)] = probs[raw_s]
 
-        # Primary label from cluster
         label = self._rank_map[raw_state]
         conf  = float(probs[raw_state])
 
-        # Absolute threshold override using current raw features
         cur_yield_z = float(X_raw[-1, 0])
         cur_mac_str = float(X_raw[-1, 5])
         abs_label   = self._label_from_scores(cur_yield_z, cur_mac_str)
@@ -185,8 +182,6 @@ class MacroAgent:
             )
             label = abs_label
 
-        # Pair-specific carry signal refinement
-        # If pair_carry_signal strongly contradicts the label, downgrade to neutral
         carry = float(df["pair_carry_signal"].iloc[-1]) if "pair_carry_signal" in df.columns else 0.0
         if carry != 0.0:
             carry_bullish = carry > 0.5
@@ -214,6 +209,40 @@ class MacroAgent:
             "mac_features":  mac_ctx,
         }
 
+    # ── LLM Tool Interface ──────────────────────────────────────────────────
+
+    MACRO_TOOL_SCHEMA = {
+        "type": "function",
+        "function": {
+            "name": "run_macro_model",
+            "description": (
+                "Run the KMeans macro regime model on the latest macro features. "
+                "Returns the detected market regime (bullish/neutral/bearish), "
+                "confidence, probability distribution across regimes, and the "
+                "underlying macro feature values."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    }
+
+    def run_macro_tool(self, features_df: pd.DataFrame) -> dict:
+        """
+        Called by the LLM orchestrator when it invokes the 'run_macro_model' tool.
+        Simply wraps predict_live() and returns a clean dict for the LLM to read.
+        """
+        result = self.predict_live(features_df)
+        return {
+            "regime_label": result["regime_label"],
+            "confidence": round(result["regime_conf"], 4),
+            "probability_distribution": result["regime_probs"],
+            "regime_active": result["regime_active"],
+            "macro_features": result["mac_features"],
+        }
+
     # ── Persistence ───────────────────────────────────────────────────────────
 
     def save(self) -> None:
@@ -239,3 +268,41 @@ class MacroAgent:
         self.fitted    = True
         logger.info(f"MacroAgent loaded from {self.model_dir}")
         return self
+
+
+# ── Quick self-test ───────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    import pandas as pd
+    import yaml
+
+    print("🧪 Testing MacroAgent LLM tool wrapper...")
+
+    dates = pd.date_range("2024-01-01", periods=100, freq="D")
+    np.random.seed(42)
+    df = pd.DataFrame({
+        "yield_10y": np.random.normal(3.5, 0.5, 100),
+        "yield_2y":  np.random.normal(3.0, 0.4, 100),
+        "vix":       np.random.normal(18, 5, 100),
+        "pair_carry_signal": np.random.normal(0, 1, 100),
+    })
+
+    df = MacroAgent.compute_mac_features(df)
+
+    cfg = yaml.safe_load("""
+    paths:
+      macro_model: /tmp/test_macro_model
+    macro:
+      n_states: 3
+      state_labels: ["bullish", "neutral", "bearish"]
+    """)
+
+    agent = MacroAgent(cfg)
+    agent.fit(df)
+
+    result = agent.predict_live(df.iloc[-10:])
+    print(f"✅ predict_live() regime: {result['regime_label']}, conf: {result['regime_conf']:.4f}")
+
+    tool_result = agent.run_macro_tool(df.iloc[-10:])
+    print(f"✅ run_macro_tool() regime: {tool_result['regime_label']}, conf: {tool_result['confidence']}")
+    print(f"   Probs: {tool_result['probability_distribution']}")
+    print("✅ MacroAgent LLM tool wrapper works!")
