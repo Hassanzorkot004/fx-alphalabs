@@ -48,6 +48,17 @@ export interface Signal {
   lifecycle_status?:  'active' | 'near_expiry' | 'expired';
   horizon_hours?:     number;
   pct_elapsed?:       number;
+
+  // Per-agent LLM analyst reports (v4 pipeline)
+  macro_analyst?:  string;
+  macro_key_feat?: string;
+  macro_override?: boolean;
+  tech_analyst?:   string;
+  tech_key_feat?:  string;
+  tech_override?:  boolean;
+  sent_analyst?:   string;
+  sent_key_feat?:  string;
+  sent_override?:  boolean;
 }
 
 export interface LiveContext {

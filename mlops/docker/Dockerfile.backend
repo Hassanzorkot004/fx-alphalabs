@@ -7,23 +7,24 @@ RUN apt-get update && apt-get install -y \
     gcc g++ curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install fx_alphalab package (editable install)
+# Install fx_alphalab package
 COPY fx_alphalab/ ./fx_alphalab/
 RUN pip install --no-cache-dir -e ./fx_alphalab
 
-# Install backend dependencies (remove -e line, already installed)
+# Install backend dependencies (strip editable install line)
 COPY Deployment/Backend/requirements.txt ./backend_requirements.txt
 RUN grep -v "^-e" backend_requirements.txt > backend_clean.txt \
     && pip install --no-cache-dir -r backend_clean.txt
 
-# Copy backend code
+# Copy backend source
 COPY Deployment/Backend/ ./Deployment/Backend/
 
-# Copy models
+# Copy trained models
 COPY fx_alphalab/outputs/ ./fx_alphalab/outputs/
 
+# Backend runs on 5001
+ENV BACKEND_PORT=5001
+EXPOSE 5001
+
 WORKDIR /app/Deployment/Backend
-
-EXPOSE 8080
-
 CMD ["python", "main.py"]

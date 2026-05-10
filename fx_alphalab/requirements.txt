@@ -4,6 +4,7 @@ yfinance>=0.2.36
 pandas>=2.1.0
 numpy>=1.26.0
 scikit-learn>=1.4.0
+xgboost>=2.0.0
 hmmlearn>=0.3.2
 feedparser>=6.0.10
 requests>=2.31.0
@@ -16,3 +17,7 @@ groq>=0.4.0
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
 python-dotenv>=1.0.0
+
+# RAG (optional — falls back to keyword scoring if not installed)
+chromadb>=0.4.0
+sentence-transformers>=2.7.0

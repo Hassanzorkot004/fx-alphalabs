@@ -172,8 +172,17 @@ def build_signal_context(pair: str, mode: str) -> str:
         return f"No active signal found for {pair}."
 
     headlines = signal_store.get_recent_headlines(pair)
-    events = calendar_service.get_upcoming(hours_ahead=12)
-    pair_events = [e for e in events if pair.replace("=X", "") in e.get("pairs_affected", [])]
+
+    # Use demo calendar if in demo mode
+    from app.config import settings as _settings
+    from app.services.demo_service import is_demo, demo_mode, get_demo_calendar
+    if is_demo():
+        all_events = get_demo_calendar(demo_mode())
+        pair_clean = pair.replace("=X", "")
+        pair_events = [e for e in all_events if pair_clean in e.get("pairs_affected", [])]
+    else:
+        events = calendar_service.get_upcoming(hours_ahead=12)
+        pair_events = [e for e in events if pair.replace("=X", "") in e.get("pairs_affected", [])]
     
     # Calculate risk metrics
     from app.services.live_context_service import calculate_risk_metrics

@@ -8,6 +8,7 @@ python-multipart>=0.0.6
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
 python-dotenv>=1.0.0
+xgboost>=2.0.0
 
 # Phase 2 dependencies
 yfinance>=0.2.0
@@ -18,6 +19,10 @@ feedparser>=6.0.0
 
 # Phase 3 dependencies
 groq>=0.4.0
+
+# RAG dependencies
+chromadb>=0.4.0
+sentence-transformers>=2.7.0
 
 # Install fx_alphalab as editable package
 -e ../../fx_alphalab

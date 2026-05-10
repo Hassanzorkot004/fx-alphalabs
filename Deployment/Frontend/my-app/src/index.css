@@ -10,21 +10,24 @@
   --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
-  /* FX AlphaLab color palette */
-  --bg:      #0a0906;
-  --bg1:     #0f0d0a;
-  --bg2:     #141210;
-  --bg3:     #1c1916;
-  --bg4:     #242018;
-  --border:  #2a2520;
-  --border2: #3a332a;
-  --amber:   #e8a030;
-  --amber2:  #c8841a;
-  --text:    #e8e0d0;
-  --text2:   #a09080;
-  --text3:   #605848;
-  --green:   #3db87a;
-  --red:     #d45c4a;
+  /* FX AlphaLab — dark theme (default) */
+  --bg:      #0d1117;
+  --bg1:     #0d1117;
+  --bg2:     #161b22;
+  --bg3:     #1c2230;
+  --bg4:     #21283a;
+  --border:  #21293a;
+  --border2: #2d3748;
+  --cyan:    #00d4ff;
+  --cyan2:   #00a8cc;
+  --text:    #e2e8f0;
+  --text1:   #e2e8f0;
+  --text2:   #8892a4;
+  --text3:   #4a5568;
+  --green:   #00c896;
+  --red:     #ff4757;
+  --amber:   #00d4ff;
+  --amber2:  #00a8cc;
   --blue:    #5a9fd4;
 
   color-scheme: dark;
@@ -33,6 +36,30 @@
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Light theme */
+[data-theme="light"] {
+  --bg:      #f0f4f8;
+  --bg1:     #ffffff;
+  --bg2:     #ffffff;
+  --bg3:     #f0f4f8;
+  --bg4:     #e2e8f0;
+  --border:  #cbd5e0;
+  --border2: #a0aec0;
+  --cyan:    #0066cc;
+  --cyan2:   #0052a3;
+  --text:    #1a202c;
+  --text1:   #1a202c;
+  --text2:   #4a5568;
+  --text3:   #a0aec0;
+  --green:   #00875a;
+  --red:     #e53e3e;
+  --amber:   #0066cc;
+  --amber2:  #0052a3;
+  --blue:    #3182ce;
+
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -51,15 +78,19 @@ body { background: var(--bg); }
 .mono { font-family: var(--font-mono); }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--amber2); }
+::-webkit-scrollbar-thumb:hover { background: var(--cyan2); }
 
 /* Animations */
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.3; }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(8px); }
@@ -70,17 +101,21 @@ body { background: var(--bg); }
   to   { opacity: 1; }
 }
 @keyframes price-flash-green {
-  0%   { background-color: rgba(61, 184, 122, 0.2); }
+  0%   { background-color: rgba(0, 200, 150, 0.2); }
   100% { background-color: transparent; }
 }
 @keyframes price-flash-red {
-  0%   { background-color: rgba(212, 92, 74, 0.2); }
+  0%   { background-color: rgba(255, 71, 87, 0.2); }
   100% { background-color: transparent; }
 }
+@keyframes thinking-dot {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+  40%           { opacity: 1;   transform: scale(1); }
+}
 
-.animate-pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
-.animate-slide-up  { animation: slide-up 0.3s ease forwards; }
-.animate-fade-in   { animation: fade-in 0.4s ease forwards; }
+.animate-pulse-dot  { animation: pulse-dot 1.5s ease-in-out infinite; }
+.animate-slide-up   { animation: slide-up 0.3s ease forwards; }
+.animate-fade-in    { animation: fade-in 0.4s ease forwards; }
 .animate-flash-green { animation: price-flash-green 0.6s ease; }
 .animate-flash-red   { animation: price-flash-red 0.6s ease; }
 
@@ -88,4 +123,14 @@ body { background: var(--bg); }
 div:hover > .article-hint,
 div:hover > .event-hint {
   opacity: 1 !important;
+}
+
+/* Select styling */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234a5568'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px !important;
 }

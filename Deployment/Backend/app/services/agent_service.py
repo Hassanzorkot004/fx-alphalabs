@@ -1,9 +1,19 @@
 """Service layer wrapping fx_alphalab.AgentRunner"""
 
 import asyncio
+import os
+from pathlib import Path
 from typing import Dict, List, Optional
 
+from dotenv import load_dotenv
 from loguru import logger
+
+# Load the backend .env so GROQ_API_KEY / FRED_API_KEY are in os.environ
+# before AgentRunner reads them via _substitute_env_vars
+_backend_env = Path(__file__).parent.parent.parent / ".env"
+if _backend_env.exists():
+    load_dotenv(_backend_env, override=False)   # don't override if already set
+    logger.debug(f"Loaded backend .env from {_backend_env}")
 
 try:
     from fx_alphalab import AgentRunner
@@ -163,10 +173,11 @@ class AgentService:
             news_result = self.runner.news_feed.fetch(pair)
             nws_feats = news_result["nws_features"]
             
-            # Run Sentiment Agent
+            # Run Sentiment Agent (no macro context in standalone mode)
             sent_out = await asyncio.to_thread(
                 self.runner.sent_agent.predict_live,
-                nws_feats
+                nws_feats,
+                None,   # macro_context — not available in standalone call
             )
             
             logger.success(f"✓ Sentiment Agent completed for {pair}")

@@ -3,5 +3,6 @@
 from fx_alphalab.data_feed.price_feed import PriceFeed
 from fx_alphalab.data_feed.macro_feed import MacroFeed
 from fx_alphalab.data_feed.news_feed import NewsFeed
+from fx_alphalab.data_feed.news_rag import NewsRAG
 
-__all__ = ["PriceFeed", "MacroFeed", "NewsFeed"]
+__all__ = ["PriceFeed", "MacroFeed", "NewsFeed", "NewsRAG"]

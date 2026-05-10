@@ -6,17 +6,17 @@ RUN apt-get update && apt-get install -y \
     gcc g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Install fx_alphalab
+# Install fx_alphalab with all dependencies
 COPY fx_alphalab/ ./fx_alphalab/
 RUN pip install --no-cache-dir -e ./fx_alphalab
 
 # MLflow for experiment tracking
 RUN pip install --no-cache-dir mlflow>=2.11.0
 
-# Outputs volume (models saved here)
+# Outputs volume — models and signals saved here
 VOLUME /app/fx_alphalab/outputs
 
 WORKDIR /app/fx_alphalab
 
-# Default: train all agents
-CMD ["python", "scripts/train_agents_v3.py"]
+# Train all agents from unified_matrix.parquet (v4 pipeline)
+CMD ["python", "train_v4.py"]

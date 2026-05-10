@@ -22,14 +22,18 @@ export default function RecentTradesList({ data }: RecentTradesListProps) {
       overflow: 'hidden',
     }}>
       <div style={{
-        padding: 20,
+        padding: '10px 16px',
         borderBottom: '1px solid var(--border)',
+        background: 'var(--bg3)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
       }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text2)' }}>
-          Recent Signals (Simulated Outcomes)
-        </h3>
-        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-          Shows what would have happened if you followed these signals
+        <div className="mono" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          Recent Signals
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+          Simulated outcomes based on historical signals
         </div>
       </div>
       

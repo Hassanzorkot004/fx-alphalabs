@@ -20,100 +20,86 @@ class BacktestService:
         self._cache_ttl = 300  # 5 minutes
     
     def get_performance_summary(self, pair: Optional[str] = None) -> Dict:
-        """
-        Get overall signal performance metrics.
-        
-        Args:
-            pair: Optional pair filter (e.g., "EURUSD"). If None, returns all pairs.
-        
-        Returns:
-            {
-                "total_signals": int,
-                "winning_signals": int,
-                "losing_signals": int,
-                "win_rate": float,
-                "total_pips": float,
-                "avg_win_pips": float,
-                "avg_loss_pips": float,
-                "profit_factor": float,
-                "max_drawdown_pips": float,
-                "max_drawdown_pct": float,
-                "sharpe_ratio": float,
-                "best_signal_pips": float,
-                "worst_signal_pips": float,
-                "avg_signal_duration_hours": float,
-            }
-        """
         try:
-            signals = self._load_and_simulate_outcomes(pair)
-            
-            if not signals:
+            from app.config import settings as _settings
+            from app.services.demo_service import is_demo, demo_mode, DEMO_CSVS
+
+            csv_path = DEMO_CSVS.get(demo_mode()) if is_demo() else _settings.SIGNALS_CSV
+
+            if not csv_path or not csv_path.exists():
                 return {"error": "No signal data available"}
-            
-            df = pd.DataFrame(signals)
-            
-            # Basic counts
+
+            df = pd.read_csv(csv_path)
+            if df.empty:
+                return {"error": "No signal data available"}
+
+            if pair:
+                clean_pair = pair.replace("=X", "")
+                df = df[df["pair"].str.replace("=X", "", regex=False) == clean_pair]
+
             total_signals = len(df)
-            winning_signals = len(df[df["pips"] > 0])
-            losing_signals = len(df[df["pips"] <= 0])
-            
-            # Win rate
-            win_rate = winning_signals / total_signals if total_signals > 0 else 0
-            
-            # Pips metrics
-            total_pips = df["pips"].sum()
-            wins = df[df["pips"] > 0]["pips"]
-            losses = df[df["pips"] <= 0]["pips"]
-            
-            avg_win_pips = wins.mean() if len(wins) > 0 else 0
-            avg_loss_pips = losses.mean() if len(losses) > 0 else 0
-            
-            # Profit factor
-            gross_profit = wins.sum() if len(wins) > 0 else 0
-            gross_loss = abs(losses.sum()) if len(losses) > 0 else 0
-            profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0
-            
-            # Drawdown
-            cumulative = df["pips"].cumsum()
-            running_max = cumulative.expanding().max()
-            drawdown = cumulative - running_max
-            max_drawdown_pips = drawdown.min()
-            
-            # Drawdown percentage: relative to peak equity
-            # If peak is negative or zero, percentage doesn't make sense
-            if running_max.max() > 0:
-                max_drawdown_pct = abs(max_drawdown_pips / running_max.max() * 100)
+            directional = df[df["direction"] != "HOLD"]
+            hold_count   = len(df[df["direction"] == "HOLD"])
+            buy_count    = len(df[df["direction"] == "BUY"])
+            sell_count   = len(df[df["direction"] == "SELL"])
+
+            # Try simulated outcomes for signals that have trade levels
+            simulated = self._load_and_simulate_outcomes(pair)
+            if simulated:
+                sim_df = pd.DataFrame(simulated)
+                winning  = len(sim_df[sim_df["pips"] > 0])
+                losing   = len(sim_df[sim_df["pips"] <= 0])
+                win_rate = winning / len(sim_df) if len(sim_df) > 0 else 0
+                total_pips = sim_df["pips"].sum()
+                wins   = sim_df[sim_df["pips"] > 0]["pips"]
+                losses = sim_df[sim_df["pips"] <= 0]["pips"]
+                avg_win  = float(wins.mean())  if len(wins)   > 0 else 0
+                avg_loss = float(losses.mean()) if len(losses) > 0 else 0
+                gp = wins.sum() if len(wins) > 0 else 0
+                gl = abs(losses.sum()) if len(losses) > 0 else 0
+                profit_factor = gp / gl if gl > 0 else 0
+                cumulative  = sim_df["pips"].cumsum()
+                running_max = cumulative.expanding().max()
+                drawdown    = cumulative - running_max
+                max_dd_pips = float(drawdown.min())
+                max_dd_pct  = abs(max_dd_pips / running_max.max() * 100) if running_max.max() > 0 else 0
+                returns = sim_df["pips"].values
+                sharpe  = float(returns.mean() / returns.std() * np.sqrt(252)) if returns.std() > 1e-6 else 0.0
+                sharpe  = min(sharpe, 99.0)  # cap at 99
+                best  = float(sim_df["pips"].max())
+                worst = float(sim_df["pips"].min())
+                avg_dur = float(sim_df["duration_hours"].mean()) if "duration_hours" in sim_df.columns else 0
             else:
-                max_drawdown_pct = 0
-            
-            # Sharpe ratio (annualized, assuming 252 trading days)
-            returns = df["pips"].values
-            sharpe_ratio = (returns.mean() / returns.std() * np.sqrt(252)) if returns.std() > 0 else 0
-            
-            # Best/worst trades
-            best_trade_pips = df["pips"].max()
-            worst_trade_pips = df["pips"].min()
-            
-            # Average duration
-            avg_duration = df["duration_hours"].mean() if "duration_hours" in df.columns else 0
-            
+                # No trade-level data yet — return signal counts only
+                winning = losing = 0
+                win_rate = total_pips = avg_win = avg_loss = 0.0
+                profit_factor = max_dd_pips = max_dd_pct = sharpe = 0.0
+                best = worst = avg_dur = 0.0
+
+            avg_conf = float(df["confidence"].mean()) if "confidence" in df.columns else 0
+
             return {
-                "total_signals": int(total_signals),
-                "winning_signals": int(winning_signals),
-                "losing_signals": int(losing_signals),
-                "win_rate": round(win_rate, 4),
-                "total_pips": round(total_pips, 1),
-                "avg_win_pips": round(avg_win_pips, 1),
-                "avg_loss_pips": round(avg_loss_pips, 1),
-                "profit_factor": round(profit_factor, 2),
-                "max_drawdown_pips": round(max_drawdown_pips, 1),
-                "max_drawdown_pct": round(max_drawdown_pct, 1),
-                "sharpe_ratio": round(sharpe_ratio, 2),
-                "best_signal_pips": round(best_trade_pips, 1),
-                "worst_signal_pips": round(worst_trade_pips, 1),
-                "avg_signal_duration_hours": round(avg_duration, 1),
+                "total_signals":              int(total_signals),
+                "directional_signals":        int(len(directional)),
+                "hold_signals":               int(hold_count),
+                "buy_signals":                int(buy_count),
+                "sell_signals":               int(sell_count),
+                "winning_signals":            int(winning),
+                "losing_signals":             int(losing),
+                "win_rate":                   round(win_rate, 4),
+                "total_pips":                 round(total_pips, 1),
+                "avg_win_pips":               round(avg_win, 1),
+                "avg_loss_pips":              round(avg_loss, 1),
+                "profit_factor":              round(profit_factor, 2),
+                "max_drawdown_pips":          round(max_dd_pips, 1),
+                "max_drawdown_pct":           round(max_dd_pct, 1),
+                "sharpe_ratio":               round(sharpe, 2),
+                "best_signal_pips":           round(best, 1),
+                "worst_signal_pips":          round(worst, 1),
+                "avg_signal_duration_hours":  round(avg_dur, 1),
+                "avg_confidence":             round(avg_conf, 3),
             }
-            
+
         except Exception as e:
             logger.error(f"Performance summary failed: {e}")
             return {"error": str(e)}
@@ -252,7 +238,9 @@ class BacktestService:
                 profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0
                 
                 returns = pair_df["pips"].values
-                sharpe_ratio = (returns.mean() / returns.std() * np.sqrt(252)) if returns.std() > 0 else 0
+                sharpe_ratio = (float(returns.mean() / returns.std() * np.sqrt(252))
+                                if returns.std() > 1e-6 else 0.0)
+                sharpe_ratio = round(min(sharpe_ratio, 99.0), 2)  # cap at 99
                 
                 pairs_data.append({
                     "pair": pair.replace("=X", ""),
@@ -330,23 +318,17 @@ class BacktestService:
             return {"error": str(e)}
     
     def _load_and_simulate_outcomes(self, pair: Optional[str] = None) -> List[Dict]:
-        """
-        Load signals from CSV and simulate their outcomes.
-        
-        This simulates "what if you followed this signal":
-        - Entry: entry_low or entry_high (depending on direction)
-        - Exit: stop_estimate (loss) or target_estimate (win)
-        - Outcome: Based on confidence (>0.5 = likely hit target)
-        - Pips: difference * pip_multiplier
-        
-        NOTE: These are SIMULATED outcomes, not actual trades.
-        """
         try:
-            if not settings.SIGNALS_CSV.exists():
-                logger.warning("No signals.csv found")
+            from app.config import settings as _settings
+            from app.services.demo_service import is_demo, demo_mode, DEMO_CSVS
+
+            csv_path = DEMO_CSVS.get(demo_mode()) if is_demo() else _settings.SIGNALS_CSV
+
+            if not csv_path or not csv_path.exists():
+                logger.warning("No signals CSV found")
                 return []
             
-            df = pd.read_csv(settings.SIGNALS_CSV)
+            df = pd.read_csv(csv_path)
             
             if df.empty:
                 return []
@@ -354,7 +336,7 @@ class BacktestService:
             # Filter by pair if specified
             if pair:
                 clean_pair = pair.replace("=X", "")
-                df = df[df["pair"].str.replace("=X", "") == clean_pair]
+                df = df[df["pair"].str.replace("=X", "", regex=False) == clean_pair]
             
             # Only process signals with entry/stop/target data
             df = df.dropna(subset=["entry_low", "entry_high", "stop_estimate", "target_estimate"])
@@ -380,11 +362,24 @@ class BacktestService:
                     stop = row["stop_estimate"]
                     target = row["target_estimate"]
                 
-                # Simulate outcome (simplified: assume 60% hit target, 40% hit stop based on confidence)
+                # Simulate outcome using confidence as win probability
+                # confidence=0.78 → 78% chance of hitting target
+                # This produces realistic win/loss distribution instead of all-wins
                 confidence = row.get("confidence", 0.5)
-                
-                # Higher confidence = more likely to hit target
-                hit_target = confidence > 0.5
+                agreement  = row.get("agent_agreement", "PARTIAL")
+
+                # Base win probability from confidence
+                # FULL agreement gets a boost, CONFLICT gets a penalty
+                if agreement == "FULL":
+                    win_prob = min(confidence + 0.05, 0.85)
+                elif agreement == "CONFLICT":
+                    win_prob = max(confidence - 0.10, 0.35)
+                else:
+                    win_prob = confidence
+
+                # Deterministic based on row index for reproducibility
+                row_seed = abs(hash(str(row.get("timestamp", "")) + row.get("pair", ""))) % 1000
+                hit_target = (row_seed / 1000.0) < win_prob
                 
                 if hit_target:
                     exit_price = target

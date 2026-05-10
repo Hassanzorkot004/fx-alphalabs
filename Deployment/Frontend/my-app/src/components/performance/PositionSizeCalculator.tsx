@@ -21,11 +21,11 @@ export default function PositionSizeCalculator({ totalPips }: PositionSizeCalcul
       padding: 20,
     }}>
       <div style={{ marginBottom: 16 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text2)', marginBottom: 4 }}>
+        <div className="mono" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
           Position Size Calculator
-        </h3>
+        </div>
         <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-          Optional "what if" calculator - see projected returns based on your capital
+          "What if" calculator — projected returns based on your capital
         </div>
       </div>
 
@@ -149,7 +149,7 @@ export default function PositionSizeCalculator({ totalPips }: PositionSizeCalcul
           <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
             Risk Amount
           </div>
-          <div className="mono" style={{ fontSize: 16, fontWeight: 600, color: 'var(--amber)' }}>
+          <div className="mono" style={{ fontSize: 16, fontWeight: 600, color: 'var(--cyan)' }}>
             ${riskAmount.toFixed(2)}
           </div>
         </div>
@@ -197,14 +197,14 @@ export default function PositionSizeCalculator({ totalPips }: PositionSizeCalcul
       <div style={{
         marginTop: 12,
         padding: 12,
-        background: 'rgba(251, 191, 36, 0.1)',
-        border: '1px solid rgba(251, 191, 36, 0.3)',
+        background: 'rgba(0, 212, 255, 0.08)',
+        border: '1px solid rgba(0, 212, 255, 0.25)',
         borderRadius: 6,
         fontSize: 11,
         color: 'var(--text3)',
         lineHeight: 1.5,
       }}>
-        <strong style={{ color: 'var(--amber)' }}>Note:</strong> This calculator shows hypothetical returns based on historical signal performance. 
+        <strong style={{ color: 'var(--cyan)' }}>Note:</strong> This calculator shows hypothetical returns based on historical signal performance. 
         Past performance does not guarantee future results. Always use proper risk management.
       </div>
     </div>
