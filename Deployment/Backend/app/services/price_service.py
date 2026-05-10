@@ -16,6 +16,12 @@ class PriceService:
         self._ttl = cache_ttl_seconds
 
     def get_prices(self) -> Dict[str, dict]:
+        # Demo mode: return drifting prices so numbers move on screen
+        from app.config import settings
+        if settings.DEMO_MODE in ("commercial", "showcase"):
+            from app.services.demo_service import get_demo_price_drift
+            return {pair: get_demo_price_drift(pair) for pair in PAIRS}
+
         now = time.time()
         if now - self._cache_ts < self._ttl and self._cache:
             return self._cache

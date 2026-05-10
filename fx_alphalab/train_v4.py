@@ -42,6 +42,16 @@ except ImportError:
     from agents.technical_agent import TechnicalAgent
     from agents.sentiment_agent import SentimentAgent, NWS_FEATURES, MACRO_CONTEXT_FEATURES
 
+# MLflow tracking — optional, gracefully disabled if not installed
+MLOPS_DIR = ROOT.parent / "mlops"
+sys.path.insert(0, str(ROOT.parent))   # project root so mlops is importable
+try:
+    from mlops.mlflow.mlflow_tracking import MLflowTracker
+    _tracker = MLflowTracker(experiment_name="fx-alphalab-v4")
+except Exception as _e:
+    logger.warning(f"MLflow tracking disabled: {_e}")
+    _tracker = None
+
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -204,8 +214,10 @@ def train_sentiment(df: pd.DataFrame, cfg: dict) -> SentimentAgent:
 # ── Step 6: Evaluate on val/test ─────────────────────────────────────────────
 
 def evaluate(df: pd.DataFrame, macro: MacroAgent, tech: TechnicalAgent,
-             sent: SentimentAgent) -> None:
+             sent: SentimentAgent) -> dict:
+    """Returns dict of metrics for MLflow logging."""
     logger.info("\n── Evaluation (val + test splits) ──")
+    metrics = {}
 
     for split_name in ["val", "test"]:
         split_df = df[df["split"] == split_name].copy() if "split" in df.columns else df.copy()
@@ -257,6 +269,7 @@ def evaluate(df: pd.DataFrame, macro: MacroAgent, tech: TechnicalAgent,
                 preds = model(seq).argmax(-1).cpu().numpy()
             f1 = f1_score(y_seq, preds, average="macro", zero_division=0)
             logger.info(f"  [{split_name}] Tech [{pair}]: F1={f1:.4f} (n={len(y_seq):,})")
+            metrics[f"tech_{pair.lower()}_{split_name}_f1"] = round(f1, 4)
 
         # SentimentAgent — accuracy
         sent_feat_cols = [c for c in sent._feature_cols if c in split_df.columns]
@@ -268,6 +281,9 @@ def evaluate(df: pd.DataFrame, macro: MacroAgent, tech: TechnicalAgent,
             preds_sent = sent._model.predict(X_sent)
             acc = float((preds_sent == y_sent).mean())
             logger.info(f"  [{split_name}] Sentiment: acc={acc:.3f} (n={len(y_sent):,})")
+            metrics[f"sentiment_{split_name}_acc"] = round(acc, 4)
+
+    return metrics
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -291,25 +307,66 @@ def main():
     cfg = load_cfg()
     df  = load_matrix(Path(args.matrix))
 
-    # Stage 1: Macro (must run first — feeds context to sentiment)
-    macro = train_macro(df, cfg)
+    # ── MLflow run wraps the entire training ──────────────────────────────────
+    run_ctx = _tracker.start_run("v4-pipeline") if _tracker else None
+    try:
+        if run_ctx:
+            run_ctx.__enter__()
 
-    # Add macro context features to df for sentiment training
-    df = add_macro_context(df, macro)
+        # Log hyperparameters
+        if _tracker:
+            _tracker.log_params({
+                "model_version":        "v4",
+                "data_source":          "unified_matrix.parquet",
+                "training_rows":        int(df[df["split"] == "train"].shape[0]),
+                "val_rows":             int(df[df["split"] == "val"].shape[0]),
+                "test_rows":            int(df[df["split"] == "test"].shape[0]),
+                "pairs":                "EURUSD,GBPUSD,USDJPY",
+                "epochs":               args.epochs,
+                "batch_size":           256,
+                "learning_rate":        3e-4,
+                "tech_window_bars":     cfg["technical"]["window_bars"],
+                "tech_hidden":          cfg["technical"]["hidden"],
+                "tech_dropout":         cfg["technical"]["dropout"],
+                "macro_n_states":       cfg["macro"]["n_states"],
+                "macro_n_features":     len(cfg["macro"]["feature_cols"]),
+                "sent_n_features":      len(cfg["sentiment"]["feature_cols"]),
+                "min_confidence":       cfg["signal"]["min_confidence"],
+                "skip_tech":            args.skip_tech,
+            })
 
-    # Stage 2: Technical
-    if not args.skip_tech:
-        tech = train_technical(df, cfg, epochs=args.epochs)
-    else:
-        logger.info("\n── Stage 2: TechnicalAgent — SKIPPED ──")
-        tech = TechnicalAgent(cfg).load()
+        # Stage 1: Macro
+        macro = train_macro(df, cfg)
 
-    # Stage 3: Sentiment (uses macro context features)
-    sent = train_sentiment(df, cfg)
+        # Add macro context features for sentiment
+        df = add_macro_context(df, macro)
 
-    # Evaluation
-    if not args.skip_eval:
-        evaluate(df, macro, tech, sent)
+        # Stage 2: Technical
+        if not args.skip_tech:
+            tech = train_technical(df, cfg, epochs=args.epochs)
+        else:
+            logger.info("\n── Stage 2: TechnicalAgent — SKIPPED ──")
+            tech = TechnicalAgent(cfg).load()
+
+        # Stage 3: Sentiment
+        sent = train_sentiment(df, cfg)
+
+        # Evaluation + MLflow metrics
+        eval_metrics = {}
+        if not args.skip_eval:
+            eval_metrics = evaluate(df, macro, tech, sent)
+            if _tracker and eval_metrics:
+                _tracker.log_metrics(eval_metrics)
+                logger.info(f"  MLflow: logged {len(eval_metrics)} metrics")
+
+        # Log model artifacts
+        if _tracker:
+            _tracker.log_models(str(ROOT / MODELS_OUT))
+            logger.info(f"  MLflow: logged model artifacts from {MODELS_OUT}/")
+
+    finally:
+        if run_ctx:
+            run_ctx.__exit__(None, None, None)
 
     logger.info("")
     logger.info("═" * 60)

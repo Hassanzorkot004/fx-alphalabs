@@ -47,7 +47,7 @@ export default function SignalCard({ signal, price, liveContext, isSelected, onC
         cursor: 'pointer',
         transition: 'border-color 0.15s ease',
         overflow: 'hidden',
-        opacity: liveContext?.validity?.status === 'EXPIRED' || liveContext?.validity?.status === 'STOPPED_OUT' ? 0.55 : 1,
+        opacity: liveContext?.validity?.status === 'STOPPED_OUT' ? 0.55 : 1,
       }}
     >
       {/* ── Header: Pair + Price ─────────────────────────────── */}

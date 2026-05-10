@@ -54,18 +54,23 @@ export default function App() {
 
   const handleNewsClick = (article: NewsArticle) => {
     const pairName = activePair.replace('=X', '');
-    if (alphaBotSendRef.current) {
-      alphaBotSendRef.current(`How does this news affect ${pairName}? "${article.title}"`);
-    }
     setAlphaBotOpen(true);
+    // Small delay so panel mounts and subscribes to state before message fires
+    setTimeout(() => {
+      if (alphaBotSendRef.current) {
+        alphaBotSendRef.current(`How does this news affect ${pairName}? "${article.title}"`);
+      }
+    }, 50);
   };
 
   const handleEventClick = (event: CalendarEvent) => {
     const pairName = activePair.replace('=X', '');
-    if (alphaBotSendRef.current) {
-      alphaBotSendRef.current(`How will "${event.event}" (${event.currency}) impact ${pairName}?`);
-    }
     setAlphaBotOpen(true);
+    setTimeout(() => {
+      if (alphaBotSendRef.current) {
+        alphaBotSendRef.current(`How will "${event.event}" (${event.currency}) impact ${pairName}?`);
+      }
+    }, 50);
   };
 
   const sortedSignals = [...filteredSignals].sort((a, b) => {

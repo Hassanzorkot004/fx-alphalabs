@@ -28,6 +28,10 @@ from app.config import settings
 from app.services import agent_service, signal_store, news_service
 from app.services.change_detector import change_detector
 from app.services.news_monitor import news_monitor
+from app.services.demo_service import (
+    is_demo, demo_mode, load_demo_signals, load_demo_history,
+    get_demo_calendar, fake_run_cycle,
+)
 
 # Global state for next cycle tracking
 next_cycle_ts = 0.0
@@ -48,12 +52,34 @@ async def lifespan(app: FastAPI):
     
     # Initialize services
     try:
-        agent_service.initialize()
-        signal_store.load_from_csv()
-        
+        if is_demo():
+            logger.info(f"╔══════════════════════════════════════════════════════════╗")
+            logger.info(f"║   DEMO MODE: {demo_mode().upper():<44}║")
+            logger.info(f"╚══════════════════════════════════════════════════════════╝")
+            # Load demo signals directly — skip agent initialization
+            demo_signals  = load_demo_signals(demo_mode())
+            demo_history  = load_demo_history(demo_mode())
+            with signal_store.lock:
+                signal_store.last_signals = demo_signals
+                signal_store.history      = demo_history
+                # Compute basic stats from demo history
+                signal_store.stats = {
+                    "n_trades":          len([s for s in demo_history if s.get("direction") != "HOLD"]),
+                    "win_rate":          0.0,
+                    "total_pips":        0.0,
+                    "profit_factor":     0.0,
+                    "max_drawdown_pips": 0.0,
+                    "sharpe":            0.0,
+                    "data_source":       "demo",
+                }
+            logger.success(f"Demo: {len(demo_signals)} signals, {len(demo_history)} history rows loaded")
+        else:
+            agent_service.initialize()
+            signal_store.load_from_csv()
+
         # Initialize news service with RSS feeds from config
         news_service._feeds = settings.RSS_FEEDS
-        
+
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
         logger.error("Make sure fx_alphalab is installed: pip install -e ../../fx_alphalab")
@@ -69,18 +95,19 @@ async def lifespan(app: FastAPI):
         minutes=settings.RUN_EVERY_MINS,
         id="full_cycle",
         max_instances=1,
-        next_run_time=datetime.now() if settings.RUN_ON_STARTUP else None,
+        next_run_time=datetime.now() if (settings.RUN_ON_STARTUP and not is_demo()) else None,
     )
     
-    # Technical-only cycle (every 15 minutes) - just Technical + LLM if changed
-    scheduler.add_job(
-        run_technical_cycle,
-        trigger="interval",
-        minutes=15,
-        id="technical_cycle",
-        max_instances=1,
-        next_run_time=datetime.now() + timedelta(minutes=5) if settings.RUN_ON_STARTUP else None,
-    )
+    # Technical-only cycle (every 15 minutes) — disabled in demo mode
+    if not is_demo():
+        scheduler.add_job(
+            run_technical_cycle,
+            trigger="interval",
+            minutes=15,
+            id="technical_cycle",
+            max_instances=1,
+            next_run_time=datetime.now() + timedelta(minutes=5) if settings.RUN_ON_STARTUP else None,
+        )
     
     # Price + context broadcast (every 30 seconds)
     scheduler.add_job(
@@ -154,7 +181,13 @@ app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
 async def run_full_cycle():
     """Full cycle: Macro + Technical + Sentiment + LLM (every 60 min)"""
     global next_cycle_ts
-    
+
+    if is_demo():
+        # In demo mode, fake the cycle
+        await fake_run_cycle(signal_store, websocket.broadcast_update)
+        next_cycle_ts = time.time() + (settings.RUN_EVERY_MINS * 60)
+        return
+
     try:
         logger.info("═══ FULL CYCLE START ═══")
         signals_list = await agent_service.run_cycle()

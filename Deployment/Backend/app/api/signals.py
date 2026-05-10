@@ -89,10 +89,18 @@ async def run_now():
     """Force an immediate agent cycle"""
     if agent_service.is_running:
         return {"status": "already_running", "cycle": agent_service.cycle_number}
-    
+
     try:
         import asyncio
         from app.api.websocket import broadcast_update
+        from app.config import settings as _settings
+        from app.services.demo_service import is_demo, fake_run_cycle
+
+        if is_demo():
+            # Demo mode: fake the cycle
+            from app.services import signal_store as _store
+            asyncio.create_task(fake_run_cycle(_store, broadcast_update))
+            return {"status": "started", "cycle": 1}
 
         async def _run_and_broadcast():
             signals_list = await agent_service.run_cycle()

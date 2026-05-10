@@ -21,8 +21,12 @@ class BacktestService:
     
     def get_performance_summary(self, pair: Optional[str] = None) -> Dict:
         try:
-            # Load ALL signals, not just those with trade levels
-            if not settings.SIGNALS_CSV.exists():
+            from app.config import settings as _settings
+            from app.services.demo_service import is_demo, demo_mode, DEMO_CSVS
+
+            csv_path = DEMO_CSVS.get(demo_mode()) if is_demo() else _settings.SIGNALS_CSV
+
+            if not csv_path or not csv_path.exists():
                 return {"error": "No signal data available"}
 
             df = pd.read_csv(settings.SIGNALS_CSV)
@@ -311,23 +315,17 @@ class BacktestService:
             return {"error": str(e)}
     
     def _load_and_simulate_outcomes(self, pair: Optional[str] = None) -> List[Dict]:
-        """
-        Load signals from CSV and simulate their outcomes.
-        
-        This simulates "what if you followed this signal":
-        - Entry: entry_low or entry_high (depending on direction)
-        - Exit: stop_estimate (loss) or target_estimate (win)
-        - Outcome: Based on confidence (>0.5 = likely hit target)
-        - Pips: difference * pip_multiplier
-        
-        NOTE: These are SIMULATED outcomes, not actual trades.
-        """
         try:
-            if not settings.SIGNALS_CSV.exists():
-                logger.warning("No signals.csv found")
+            from app.config import settings as _settings
+            from app.services.demo_service import is_demo, demo_mode, DEMO_CSVS
+
+            csv_path = DEMO_CSVS.get(demo_mode()) if is_demo() else _settings.SIGNALS_CSV
+
+            if not csv_path or not csv_path.exists():
+                logger.warning("No signals CSV found")
                 return []
             
-            df = pd.read_csv(settings.SIGNALS_CSV)
+            df = pd.read_csv(csv_path)
             
             if df.empty:
                 return []
@@ -335,7 +333,7 @@ class BacktestService:
             # Filter by pair if specified
             if pair:
                 clean_pair = pair.replace("=X", "")
-                df = df[df["pair"].str.replace("=X", "") == clean_pair]
+                df = df[df["pair"].str.replace("=X", "", regex=False) == clean_pair]
             
             # Only process signals with entry/stop/target data
             df = df.dropna(subset=["entry_low", "entry_high", "stop_estimate", "target_estimate"])

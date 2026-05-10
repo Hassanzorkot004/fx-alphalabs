@@ -25,6 +25,10 @@ class BackendSettings(BaseSettings):
     # Agent scheduling
     RUN_EVERY_MINS: int = 60
     RUN_ON_STARTUP: bool = True
+
+    # Demo mode — set to 'commercial' or 'showcase' to use fake signals
+    # Leave empty for normal operation
+    DEMO_MODE: str = os.getenv("DEMO_MODE", "")
     
     # API Keys
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")

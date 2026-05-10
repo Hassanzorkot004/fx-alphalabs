@@ -87,13 +87,20 @@ async def websocket_signals(ws: WebSocket):
     # Get next cycle countdown
     from main import get_next_cycle_seconds
     next_cycle_seconds = get_next_cycle_seconds()
+
+    from app.services.demo_service import is_demo, demo_mode, get_demo_calendar
+    calendar_events = (
+        get_demo_calendar(demo_mode())
+        if is_demo()
+        else calendar_service.get_upcoming(hours_ahead=24)
+    )
     
     initial = {
         "type": "full_update",
         "signals": enriched_signals,
         "history": state["history"],
         "stats": state["stats"],
-        "calendar": calendar_service.get_upcoming(hours_ahead=24),
+        "calendar": calendar_events,
         "news": news_service.get_articles(limit=15),
         "prices": prices,
         "live_contexts": live_contexts,
@@ -132,38 +139,43 @@ async def websocket_signals(ws: WebSocket):
 
 async def broadcast_update(include_prices: bool = True):
     """Broadcast full state update to all connected clients"""
+    from app.services.demo_service import is_demo, demo_mode, get_demo_calendar
+
     state = signal_store.get_state()
-    
+
     logger.debug(f"broadcast_update: state has {len(state['signals'])} signals: {[s.get('pair') for s in state['signals']]}")
-    
+
     enriched_signals = [enrich_signal_for_api(s) for s in state["signals"]]
     logger.debug(f"broadcast_update: enriched {len(enriched_signals)} signals")
-    
-    # Get live context for all signals
+
     prices = price_service.get_prices() if include_prices else {}
     live_contexts = live_context_service.get_all_contexts(state["signals"], prices)
-    
-    # Get next cycle countdown
+
     from main import get_next_cycle_seconds
     next_cycle_seconds = get_next_cycle_seconds()
-    
+
+    calendar_events = (
+        get_demo_calendar(demo_mode())
+        if is_demo()
+        else calendar_service.get_upcoming(hours_ahead=24)
+    )
+
     msg = {
         "type": "full_update",
         "signals": enriched_signals,
         "history": state["history"],
         "stats": state["stats"],
-        "calendar": calendar_service.get_upcoming(hours_ahead=24),
+        "calendar": calendar_events,
         "news": news_service.get_articles(limit=15),
         "live_contexts": live_contexts,
         "next_cycle": next_cycle_seconds,
     }
-    
+
     if include_prices:
         msg["prices"] = prices
-    
+
     logger.debug(f"broadcast_update: final message has {len(msg.get('signals', []))} signals")
-    
-    # Clean NaN values and serialize datetime objects before broadcasting
+
     cleaned = clean_nan(msg)
     serialized = json.loads(json.dumps(cleaned, default=str))
     await manager.broadcast(serialized)

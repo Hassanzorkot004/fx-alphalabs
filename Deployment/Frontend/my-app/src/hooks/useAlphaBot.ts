@@ -12,6 +12,7 @@ export interface Conversation {
 }
 
 const STORAGE_KEY = 'fx-alphalab-conversations';
+const ACTIVE_ID_KEY = 'fx-alphalab-active-convo';
 
 // ── Persistence helpers ───────────────────────────────────────────
 function loadConversations(): Conversation[] {
@@ -22,9 +23,23 @@ function loadConversations(): Conversation[] {
   return [];
 }
 
+function loadActiveId(): string | null {
+  try {
+    return localStorage.getItem(ACTIVE_ID_KEY);
+  } catch { /* ignore */ }
+  return null;
+}
+
 function saveConversations(convos: Conversation[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(convos));
+  } catch { /* ignore */ }
+}
+
+function saveActiveId(id: string | null) {
+  try {
+    if (id) localStorage.setItem(ACTIVE_ID_KEY, id);
+    else localStorage.removeItem(ACTIVE_ID_KEY);
   } catch { /* ignore */ }
 }
 
@@ -55,13 +70,19 @@ function getInitialMode(): 'simple' | 'pro' {
 }
 
 export function useAlphaBot(currentPair: string, _signal: Signal | null) {
-  const [state, setState] = useState<AlphaBotState>(() => ({
-    conversations: loadConversations(),
-    activeId: null,
-    isLoading: false,
-    error: null,
-    mode: getInitialMode(),
-  }));
+  const [state, setState] = useState<AlphaBotState>(() => {
+    const convos = loadConversations();
+    const savedId = loadActiveId();
+    // Restore last active conversation if it still exists
+    const activeId = convos.find(c => c.id === savedId) ? savedId : (convos[0]?.id ?? null);
+    return {
+      conversations: convos,
+      activeId,
+      isLoading: false,
+      error: null,
+      mode: getInitialMode(),
+    };
+  });
 
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
@@ -70,6 +91,11 @@ export function useAlphaBot(currentPair: string, _signal: Signal | null) {
   useEffect(() => {
     saveConversations(state.conversations);
   }, [state.conversations]);
+
+  // Persist active conversation ID
+  useEffect(() => {
+    saveActiveId(state.activeId);
+  }, [state.activeId]);
 
   const activeConversation = state.conversations.find(c => c.id === state.activeId) ?? null;
   const messages = activeConversation?.messages ?? [];

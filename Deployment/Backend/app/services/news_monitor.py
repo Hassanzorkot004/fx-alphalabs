@@ -89,7 +89,11 @@ class NewsMonitor:
         # Use REAL Sentiment Agent model instead of keyword matching
         try:
             from app.services.agent_service import agent_service
-            
+
+            # In demo mode or if runner not initialized, skip spike detection
+            if agent_service.runner is None:
+                return
+
             # Fetch news features (same as full cycle)
             news_result = agent_service.runner.news_feed.fetch(pair)
             nws_feats = news_result["nws_features"]
