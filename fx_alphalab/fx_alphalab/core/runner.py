@@ -32,6 +32,7 @@ from fx_alphalab.data_feed import PriceFeed, MacroFeed, NewsFeed
 from fx_alphalab.data_feed.news_rag import NewsRAG
 from fx_alphalab.memory import ContextStore
 from fx_alphalab.orchestrator import Orchestrator
+from fx_alphalab.postprocessor.monitor import BalanceMonitor
 from fx_alphalab.config import settings
 
 
@@ -90,7 +91,11 @@ class AgentRunner:
         self.price_feed = PriceFeed(self.config)
         self.macro_feed = MacroFeed(self.config)
         self.news_feed  = NewsFeed(self.config)
-        self.news_rag   = NewsRAG()   # rolling in-memory vector store
+        self.news_rag   = NewsRAG()
+
+        # Per-pair balance monitors — alert when signal distribution skews
+        pairs = [p.replace("=X", "") for p in self.config["system"]["pairs"]]
+        self._monitors = {pair: BalanceMonitor(pair) for pair in pairs}
 
         context_path = settings.OUTPUTS_DIR / "context.json"
         self.context = ContextStore(path=str(context_path))
@@ -206,6 +211,20 @@ class AgentRunner:
         signal = self._add_trade_levels(signal)
 
         self.context.add(pair, signal)
+
+        # Record signal in balance monitor and check for skew
+        pair_key = pair.replace("=X", "")
+        if pair_key not in self._monitors:
+            self._monitors[pair_key] = BalanceMonitor(pair_key)
+        self._monitors[pair_key].record(
+            "BUY"  if signal.get("direction") == 1
+            else "SELL" if signal.get("direction") == -1
+            else "HOLD"
+        )
+        health = self._monitors[pair_key].check()
+        for alert in health.get("alerts", []):
+            logger.warning(alert)
+
         return signal
 
     # ── Helpers ───────────────────────────────────────────────────────────────
