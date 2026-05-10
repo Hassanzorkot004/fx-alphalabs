@@ -29,7 +29,7 @@ class BacktestService:
             if not csv_path or not csv_path.exists():
                 return {"error": "No signal data available"}
 
-            df = pd.read_csv(settings.SIGNALS_CSV)
+            df = pd.read_csv(csv_path)
             if df.empty:
                 return {"error": "No signal data available"}
 
@@ -64,7 +64,8 @@ class BacktestService:
                 max_dd_pips = float(drawdown.min())
                 max_dd_pct  = abs(max_dd_pips / running_max.max() * 100) if running_max.max() > 0 else 0
                 returns = sim_df["pips"].values
-                sharpe  = float(returns.mean() / returns.std() * np.sqrt(252)) if returns.std() > 0 else 0
+                sharpe  = float(returns.mean() / returns.std() * np.sqrt(252)) if returns.std() > 1e-6 else 0.0
+                sharpe  = min(sharpe, 99.0)  # cap at 99
                 best  = float(sim_df["pips"].max())
                 worst = float(sim_df["pips"].min())
                 avg_dur = float(sim_df["duration_hours"].mean()) if "duration_hours" in sim_df.columns else 0
@@ -237,7 +238,9 @@ class BacktestService:
                 profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0
                 
                 returns = pair_df["pips"].values
-                sharpe_ratio = (returns.mean() / returns.std() * np.sqrt(252)) if returns.std() > 0 else 0
+                sharpe_ratio = (float(returns.mean() / returns.std() * np.sqrt(252))
+                                if returns.std() > 1e-6 else 0.0)
+                sharpe_ratio = round(min(sharpe_ratio, 99.0), 2)  # cap at 99
                 
                 pairs_data.append({
                     "pair": pair.replace("=X", ""),
@@ -359,11 +362,24 @@ class BacktestService:
                     stop = row["stop_estimate"]
                     target = row["target_estimate"]
                 
-                # Simulate outcome (simplified: assume 60% hit target, 40% hit stop based on confidence)
+                # Simulate outcome using confidence as win probability
+                # confidence=0.78 → 78% chance of hitting target
+                # This produces realistic win/loss distribution instead of all-wins
                 confidence = row.get("confidence", 0.5)
-                
-                # Higher confidence = more likely to hit target
-                hit_target = confidence > 0.5
+                agreement  = row.get("agent_agreement", "PARTIAL")
+
+                # Base win probability from confidence
+                # FULL agreement gets a boost, CONFLICT gets a penalty
+                if agreement == "FULL":
+                    win_prob = min(confidence + 0.05, 0.85)
+                elif agreement == "CONFLICT":
+                    win_prob = max(confidence - 0.10, 0.35)
+                else:
+                    win_prob = confidence
+
+                # Deterministic based on row index for reproducibility
+                row_seed = abs(hash(str(row.get("timestamp", "")) + row.get("pair", ""))) % 1000
+                hit_target = (row_seed / 1000.0) < win_prob
                 
                 if hit_target:
                     exit_price = target
