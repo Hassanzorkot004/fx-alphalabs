@@ -61,7 +61,7 @@ class NewsMonitor:
                 if tag in currency_articles:
                     currency_articles[tag].append(article)
         
-        # Check each pair
+        # Check each pair — use bare names internally, =X added before yfinance calls
         pairs = ["EURUSD", "GBPUSD", "USDJPY"]
         for pair in pairs:
             await self._check_pair_spike(pair, currency_articles)
@@ -114,7 +114,15 @@ class NewsMonitor:
             logger.error(f"[{pair}] Failed to run Sentiment Agent for spike detection: {e}")
             return
         
-        baseline = self.baseline_sentiment.get(pair, 0.0)
+        baseline = self.baseline_sentiment.get(pair, None)
+
+        # On first check, initialize baseline to current sentiment
+        # to avoid a false spike on startup (baseline=0, current=+0.28 → delta=0.28 > threshold)
+        if baseline is None:
+            self.baseline_sentiment[pair] = current_avg
+            logger.debug(f"  [{pair}] Sentiment baseline initialized: {current_avg:+.3f}")
+            return
+
         delta = abs(current_avg - baseline)
         
         # Check for spike

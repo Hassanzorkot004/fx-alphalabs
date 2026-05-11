@@ -33,6 +33,14 @@ class AgentService:
         self.runner: Optional[AgentRunner] = None
         self.running = False
         self.cycle_number = 0
+        self._lock = None   # initialized lazily (needs running event loop)
+
+    def _get_lock(self):
+        """Get or create the asyncio lock (lazy — needs running event loop)."""
+        if self._lock is None:
+            import asyncio
+            self._lock = asyncio.Lock()
+        return self._lock
         
     def initialize(self):
         """Lazy initialization of agent runner"""
@@ -52,50 +60,32 @@ class AgentService:
                 raise
     
     async def run_cycle(self, pairs: Optional[List[str]] = None) -> List[Dict]:
-        """
-        Run agent cycle asynchronously.
-        
-        Args:
-            pairs: Optional list of currency pairs to analyze
-            
-        Returns:
-            List of signal dictionaries
-            
-        Raises:
-            RuntimeError: If agent is already running
-        """
-        if self.running:
-            raise RuntimeError("Agent already running")
-        
-        self.initialize()
-        self.running = True
-        self.cycle_number += 1
-        
-        try:
-            logger.info(f"Starting agent cycle #{self.cycle_number}")
-            
-            # Run in thread pool to avoid blocking the event loop
-            signals = await asyncio.to_thread(
-                self.runner.run_cycle,
-                pairs
-            )
-            
-            logger.success(
-                f"✓ Cycle #{self.cycle_number} completed - "
-                f"{len(signals)} signals generated"
-            )
-            return signals
-            
-        except Exception as e:
-            logger.error(f"✗ Cycle #{self.cycle_number} failed: {e}")
-            raise
-        finally:
-            self.running = False
-    
+        """Run agent cycle — protected by asyncio lock to prevent concurrent runs."""
+        lock = self._get_lock()
+        if lock.locked():
+            logger.warning("Agent cycle already running — skipping duplicate call")
+            return []
+
+        async with lock:
+            self.initialize()
+            self.running = True
+            self.cycle_number += 1
+
+            try:
+                logger.info(f"Starting agent cycle #{self.cycle_number}")
+                signals = await asyncio.to_thread(self.runner.run_cycle, pairs)
+                logger.success(
+                    f"✓ Cycle #{self.cycle_number} completed - "
+                    f"{len(signals)} signals generated"
+                )
+                return signals
+            except Exception as e:
+                logger.error(f"✗ Cycle #{self.cycle_number} failed: {e}")
+                raise
     @property
     def is_running(self) -> bool:
         """Check if agent is currently running"""
-        return self.running
+        return self._lock is not None and self._lock.locked()
     
     @property
     def is_initialized(self) -> bool:
@@ -131,10 +121,12 @@ class AgentService:
             
             outputs = {}
             for pair in pairs:
+                # Ensure =X suffix for yfinance
+                pair_yf = pair if pair.endswith("=X") else f"{pair}=X"
                 # Fetch price data
-                price_df = self.runner.price_feed.fetch(pair)
+                price_df = self.runner.price_feed.fetch(pair_yf)
                 if price_df is None or len(price_df) < 50:
-                    logger.warning(f"Insufficient price data for {pair}, skipping")
+                    logger.warning(f"Insufficient price data for {pair_yf}, skipping")
                     continue
                 
                 # Run Technical Agent

@@ -208,8 +208,8 @@ async def run_technical_cycle():
     try:
         logger.info("─── Technical cycle start ───")
         
-        # Get pairs to analyze (default pairs without =X suffix)
-        pairs = ["EURUSD", "GBPUSD", "USDJPY"]
+        # Get pairs to analyze — must include =X suffix for yfinance
+        pairs = ["EURUSD=X", "GBPUSD=X", "USDJPY=X"]
         
         # Run Technical Agent only
         tech_outputs = await agent_service.run_technical_only(pairs)
@@ -218,7 +218,8 @@ async def run_technical_cycle():
         changed_pairs = []
         for pair, tech_output in tech_outputs.items():
             if change_detector.technical_changed(pair, tech_output):
-                changed_pairs.append(pair)
+                # Ensure =X suffix for yfinance
+                changed_pairs.append(pair if pair.endswith("=X") else f"{pair}=X")
         
         # If any pair changed significantly, run full cycle for those pairs
         if changed_pairs:
@@ -241,17 +242,19 @@ async def run_technical_cycle():
 async def on_sentiment_spike(pair: str, spike_data: dict):
     """Handle sentiment spike detection - rerun Sentiment + LLM for this pair"""
     try:
+        # Ensure pair has =X suffix for yfinance
+        pair_yf = pair if pair.endswith("=X") else f"{pair}=X"
         logger.warning(f"[{pair}] Sentiment spike detected: {spike_data}")
         
         # Run Sentiment Agent for this pair
-        sentiment_output = await agent_service.run_sentiment_only(pair)
+        sentiment_output = await agent_service.run_sentiment_only(pair_yf)
         
         # Check if sentiment actually changed
         if change_detector.sentiment_changed(pair, sentiment_output):
             logger.info(f"[{pair}] Sentiment changed significantly, triggering LLM update")
             
             # Run full cycle for this pair only
-            signals_list = await agent_service.run_cycle(pairs=[pair])
+            signals_list = await agent_service.run_cycle(pairs=[pair_yf])
             signal_store.update(signals_list)
             await websocket.broadcast_update()
             

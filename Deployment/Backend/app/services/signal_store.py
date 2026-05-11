@@ -28,7 +28,7 @@ class SignalStore:
             return
             
         try:
-            df = pd.read_csv(settings.SIGNALS_CSV)
+            df = pd.read_csv(signals_csv, quoting=0, on_bad_lines='skip')
             if df.empty:
                 return
             
@@ -47,6 +47,8 @@ class SignalStore:
                 "macro_analyst": "", "macro_key_feat": "", "macro_override": False,
                 "tech_analyst":  "", "tech_key_feat":  "", "tech_override":  False,
                 "sent_analyst":  "", "sent_key_feat":  "", "sent_override":  False,
+                # Macro regime raw (cluster label before threshold override)
+                "macro_regime_raw": "",
             }
             for col, default in new_cols.items():
                 if col not in df.columns:
@@ -62,8 +64,8 @@ class SignalStore:
             for col in numeric_cols:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors="coerce")
-                    # For stop/target, keep NaN as None (don't fill with 0)
-                    if col not in ["stop_estimate", "target_estimate"]:
+                    # stop/target/entry: keep NaN as None — don't fill with 0
+                    if col not in ["stop_estimate", "target_estimate", "entry_low", "entry_high"]:
                         df[col] = df[col].fillna(0.0)
             
             # Sort by timestamp descending

@@ -185,7 +185,7 @@ class NewsFeed:
             #     "nws_pressure_change": press_chg,
             #     "nws_trend_strength":  trend_str,
             # }
-                        "nws_features": {
+            "nws_features": {
                 "nws_sent_signal":     sent_mean,
                 "nws_sent_mom":        sent_mom,
                 "nws_sent_fast":       sent_fast,
@@ -194,6 +194,10 @@ class NewsFeed:
                 "nws_sent_pressure":   pressure,
                 "nws_pressure_change": press_chg,
                 "nws_trend_strength":  trend_str,
+                # n_articles for Gate 1 in SentimentAgent
+                "nws_news_flow":       float(n_articles),
+                # flow imbalance for conviction gate scoring
+                "nws_flow_imbalance":  imbalance,
             },
         }
 

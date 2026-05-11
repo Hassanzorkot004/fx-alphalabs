@@ -292,7 +292,7 @@ function HistoryRow({ signal, isExpanded, onToggle }: {
                 <AgentSignalRow label="Technical" value={signal.tech_signal} />
                 <AgentSignalRow label="Sentiment" value={signal.sent_signal} />
 
-                {signal.entry_low && signal.entry_high && (
+                {signal.entry_low != null && signal.entry_low !== 0 && signal.entry_high != null && signal.entry_high !== 0 && (
                   <>
                     <div className="mono" style={{ fontSize: 10, color: 'var(--text3)', marginTop: 12, marginBottom: 8, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                       Trade Levels
@@ -300,12 +300,12 @@ function HistoryRow({ signal, isExpanded, onToggle }: {
                     <div className="mono" style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>
                       Entry: {signal.entry_low.toFixed(decimals)}–{signal.entry_high.toFixed(decimals)}
                     </div>
-                    {signal.stop_estimate && (
+                    {signal.stop_estimate != null && signal.stop_estimate !== 0 && (
                       <div className="mono" style={{ fontSize: 11, color: 'var(--red)', marginBottom: 4 }}>
                         Stop: {signal.stop_estimate.toFixed(decimals)}
                       </div>
                     )}
-                    {signal.target_estimate && (
+                    {signal.target_estimate != null && signal.target_estimate !== 0 && (
                       <div className="mono" style={{ fontSize: 11, color: 'var(--green)' }}>
                         Target: {signal.target_estimate.toFixed(decimals)}
                       </div>

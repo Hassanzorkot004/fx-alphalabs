@@ -29,7 +29,7 @@ class BacktestService:
             if not csv_path or not csv_path.exists():
                 return {"error": "No signal data available"}
 
-            df = pd.read_csv(csv_path)
+            df = pd.read_csv(csv_path, quoting=0, on_bad_lines='skip')
             if df.empty:
                 return {"error": "No signal data available"}
 
@@ -328,7 +328,7 @@ class BacktestService:
                 logger.warning("No signals CSV found")
                 return []
             
-            df = pd.read_csv(csv_path)
+            df = pd.read_csv(csv_path, quoting=0, on_bad_lines='skip')
             
             if df.empty:
                 return []

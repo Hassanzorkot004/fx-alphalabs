@@ -322,7 +322,7 @@ class AgentRunner:
         exists = signals_csv.exists()
         cols = [
             "timestamp", "pair", "direction", "confidence", "position_size",
-            "macro_regime", "tech_signal", "sent_signal", "agent_agreement",
+            "macro_regime", "macro_regime_raw", "tech_signal", "sent_signal", "agent_agreement",
             "reasoning", "key_driver", "risk_note", "source",
             "macro_conf", "tech_conf", "sent_conf",
             "macro_analyst", "macro_key_feat", "macro_override",
@@ -337,7 +337,8 @@ class AgentRunner:
             "p_bullish", "n_articles", "sent_raw", "headlines",
         ]
         with open(signals_csv, "a", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
+            writer = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore",
+                                    quoting=csv.QUOTE_ALL)
             if not exists:
                 writer.writeheader()
             writer.writerow(signal)

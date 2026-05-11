@@ -39,9 +39,9 @@ class ChartService:
             }
         """
         try:
-            # Default pairs
+            # Default pairs — with =X suffix for yfinance
             if pairs is None:
-                pairs = ["EURUSD", "GBPUSD", "USDJPY"]
+                pairs = ["EURUSD=X", "GBPUSD=X", "USDJPY=X"]
             
             # Check cache
             cache_key = f"{'-'.join(pairs)}_{period}"
