@@ -36,23 +36,15 @@ class BackendSettings(BaseSettings):
     # RSS Feeds - load from agent config
     RSS_FEEDS: List[str] = []
     
-    # CORS - handle both string and list
+    # CORS - expects JSON array in .env e.g. BACKEND_CORS_ORIGINS=["*"]
     CORS_ORIGINS: List[str] = ["*"]
-    
-    class Config:
-        env_file = ".env"
-        env_prefix = "BACKEND_"
-        case_sensitive = True
-        extra = "ignore"
-        
-        @classmethod
-        def parse_env_var(cls, field_name: str, raw_val: str):
-            if field_name == 'CORS_ORIGINS':
-                # Handle comma-separated string or single value
-                if raw_val == '*':
-                    return ['*']
-                return [x.strip() for x in raw_val.split(',')]
-            return raw_val
+
+    model_config = {
+        "env_file": ".env",
+        "env_prefix": "BACKEND_",
+        "case_sensitive": True,
+        "extra": "ignore",
+    }
 
 
 # Global settings instance
